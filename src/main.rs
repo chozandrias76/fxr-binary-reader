@@ -10,18 +10,19 @@ use fxr_binary_reader::fxr::view::view::{StructNode, build_reflection_tree};
 use log::debug;
 use memmap2::Mmap;
 use ratatui::layout::Rect;
-use ratatui::prelude::CrosstermBackend;
+use ratatui::prelude::{Backend, CrosstermBackend};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::Text;
-use ratatui::widgets::{Block, Borders, List, ListItem};
+use ratatui::widgets::{Block, Borders, List, ListItem, ListState};
 use ratatui::{Frame, Terminal};
+use std::{env, fs};
 use std::error::Error;
 use std::ops::Deref;
 use std::path::PathBuf;
 use std::process::ExitCode;
 use zerocopy::IntoBytes;
 mod gui;
-use gui::{render_ui, terminal_draw_loop};
+use gui::{file_selection_loop, render_ui, terminal_draw_loop};
 
 use std::fs::File;
 use std::io::{self, Read};
@@ -82,25 +83,52 @@ fn flatten_tree_mut<'a>(
             .collect::<Vec<_>>()
     );
 }
-
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Enable raw mode and set up the terminal
     enable_raw_mode()?;
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
-    let bin_path = PathBuf::from("D:\\Elden Ring Tools\\fxr-binary-reader\\f000302421.fxr");
-    let file = File::open(bin_path)?;
-    let mmap = unsafe { Mmap::map(&file)? };
-    let data = &mmap.as_bytes();
+    // Ensure cleanup happens even if the program panics
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        // Get the current directory
+        let current_dir = env::current_dir()?;
+        let files: Vec<String> = fs::read_dir(&current_dir)?
+            .filter_map(|entry| entry.ok())
+            .filter(|entry| entry.file_type().map(|ft| ft.is_file()).unwrap_or(false))
+            .filter_map(|entry: fs::DirEntry| {
+                let path = entry.path();
+                let extension = path.extension()?.to_str()?;
+                if extension == "fxr" {
+                    Some(entry.file_name().to_string_lossy().to_string())
+                } else {
+                    None
+                }
+            })
+            .collect();
 
-    let fxr: ParsedFXR<'_> = parse_fxr(data).unwrap();
-    let header_view: StructNode = build_reflection_tree(&fxr.header.deref(), "Header");
-    let state = AppState::new(header_view);
+        // Let the user pick a file
+        let selected_file = file_selection_loop(&mut terminal, &files)?;
 
-    terminal_draw_loop(&mut terminal, state)?;
+        // Open the selected file
+        let bin_path = current_dir.join(selected_file);
+        let file = File::open(bin_path)?;
+        let mmap = unsafe { Mmap::map(&file)? };
+        let data = &mmap.as_bytes();
 
+        let fxr: ParsedFXR<'_> = parse_fxr(data).unwrap();
+        let header_view: StructNode = build_reflection_tree(&fxr.header.deref(), "Header");
+        let state = AppState::new(header_view);
+
+        // Enter the main draw loop
+        terminal_draw_loop(&mut terminal, state)?;
+
+        Ok::<(), Box<dyn std::error::Error>>(())
+    }));
+
+    // Cleanup terminal state
     disable_raw_mode()?;
     execute!(
         terminal.backend_mut(),
@@ -108,6 +136,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         DisableMouseCapture
     )?;
     terminal.show_cursor()?;
+
+    // Handle any errors that occurred during execution
+    if let Err(err) = result {
+        if let Some(string) = err.downcast_ref::<String>() {
+            eprintln!("Application encountered a panic: {}", string);
+        } else if let Some(&str_slice) = err.downcast_ref::<&str>() {
+            eprintln!("Application encountered a panic: {}", str_slice);
+        } else {
+            eprintln!("Application encountered an unknown panic.");
+        }
+        return Err(Box::new(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            "Application crashed due to a panic",
+        )));
+    }
+
     Ok(())
 }
-

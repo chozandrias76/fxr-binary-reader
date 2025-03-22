@@ -5,9 +5,9 @@ use std::time::Duration;
 use crate::{AppState, FocusedSection};
 use crossterm::event::{self, Event, KeyCode};
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
-use ratatui::prelude::CrosstermBackend;
+use ratatui::prelude::{Backend, CrosstermBackend};
 use ratatui::style::{Modifier, Style};
-use ratatui::widgets::{Block, Borders, List, ListItem};
+use ratatui::widgets::{Block, Borders, List, ListItem, ListState};
 use ratatui::{Frame, Terminal};
 
 pub fn render_ui(f: &mut Frame, state: &AppState) {
@@ -151,6 +151,58 @@ fn render_debug_overlays(f: &mut Frame<'_>, chunks: &std::rc::Rc<[Rect]>) {
         Block::default().style(Style::default().bg(ratatui::style::Color::Red)),
         resize_debug_rect,
     );
+}
+
+pub fn file_selection_loop<B: Backend>(
+    terminal: &mut Terminal<B>,
+    files: &[String],
+) -> Result<String, Box<dyn std::error::Error>> {
+    let mut selected = 0;
+
+    loop {
+        let mut list_state = ListState::default();
+        list_state.select(Some(selected));
+        terminal.draw(|f| {
+            let size = f.area();
+            let items: Vec<ListItem> = files
+                .iter()
+                .map(|file| ListItem::new(file.clone()))
+                .collect();
+            let list = List::new(items)
+                .block(Block::default().title("Select a File").borders(Borders::ALL))
+                .highlight_style(Style::default().add_modifier(Modifier::BOLD))
+                .highlight_symbol(">> ");
+            f.render_stateful_widget(list, size, &mut list_state);
+        })?;
+
+        // Use `poll` to wait for a key event with a timeout
+        if crossterm::event::poll(Duration::from_millis(50))? {
+            if let Event::Key(key) = event::read()? {
+                // Only handle key presses (ignore repeats)
+                if key.kind == crossterm::event::KeyEventKind::Press {
+                    match key.code {
+                        KeyCode::Up => {
+                            if selected > 0 {
+                                selected -= 1;
+                            }
+                        }
+                        KeyCode::Down => {
+                            if selected < files.len() - 1 {
+                                selected += 1;
+                            }
+                        }
+                        KeyCode::Enter => {
+                            return Ok(files[selected].clone());
+                        }
+                        KeyCode::Esc => {
+                            return Err("File selection canceled".into());
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+    }
 }
 
 pub fn terminal_draw_loop(

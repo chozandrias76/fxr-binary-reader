@@ -1,14 +1,13 @@
+use super::{
+    Section12Entry, Section13Entry, Section14Entry, parse_section_1_tree::ParsedSections,
+    parse_section_4_tree::ParsedSection4Tree,
+};
+use crate::fxr::{
+    Header, parse_section_1_tree::parse_section1_tree, parse_section_4_tree::parse_section4_tree,
+    util::parse_named_u32_entries,
+};
 use log::debug;
 use zerocopy::Ref;
-
-use crate::fxr::Header;
-use crate::fxr::parse_section_1_tree::parse_section1_tree;
-use crate::fxr::parse_section_4_tree::parse_section4_tree;
-use crate::fxr::util::parse_named_u32_entries;
-
-use super::parse_section_1_tree::ParsedSections;
-use super::parse_section_4_tree::ParsedSection4Tree;
-use super::{Section12Entry, Section13Entry, Section14Entry};
 
 pub struct ParsedSection7Nested<'a> {
     pub section11: Vec<Ref<&'a [u8], [crate::fxr::Section11Entry]>>,

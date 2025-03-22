@@ -1,8 +1,6 @@
+use crate::fxr::{Section8Entry, Section9Entry, Section11Entry, util::parse_section_slice};
 use log::debug;
 use zerocopy::Ref;
-
-use crate::fxr::util::parse_section_slice;
-use crate::fxr::{Section8Entry, Section9Entry, Section11Entry};
 
 pub struct ParsedSection9<'a> {
     pub section11: Vec<Ref<&'a [u8], [Section11Entry]>>,

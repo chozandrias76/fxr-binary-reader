@@ -1,11 +1,10 @@
-use log::debug;
-use zerocopy::Ref;
-
-use crate::fxr::util::{ParseError, parse_section_slice, parse_struct};
 use crate::fxr::{
     Section7Container, Section10Container, Section11Entry,
     parse_section_7_nested::parse_section7_nested,
+    util::{ParseError, parse_section_slice, parse_struct},
 };
+use log::debug;
+use zerocopy::Ref;
 
 #[derive(Debug)]
 pub struct ParsedSection6<'a> {
@@ -108,7 +107,7 @@ pub struct ParsedSection7<'a> {
 ///   let section10 = section10.container;
 ///   assert_eq!(section10.section11_offset, 0x40);
 ///   assert_eq!(section10.section11_count, 0x00);
-///   
+///
 ///   assert!(parsed.section7.is_some());
 ///   let section7 = parsed.section7.unwrap();
 ///   let section7 = section7.container;

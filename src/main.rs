@@ -1,32 +1,26 @@
-use clap::{Parser, command};
-use crossterm::event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode};
-use crossterm::execute;
-use crossterm::terminal::{
-    EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode,
+use crossterm::{
+    event::{DisableMouseCapture, EnableMouseCapture},
+    execute,
+    terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
-use fxr_binary_reader::fxr::Header;
-use fxr_binary_reader::fxr::fxr_parser_with_sections::{ParsedFXR, parse_fxr};
-use fxr_binary_reader::fxr::view::view::{StructNode, build_reflection_tree};
+use fxr_binary_reader::fxr::{
+    fxr_parser_with_sections::{ParsedFXR, parse_fxr},
+    view::view::{StructNode, build_reflection_tree},
+};
 use log::debug;
 use memmap2::Mmap;
-use ratatui::layout::Rect;
-use ratatui::prelude::{Backend, CrosstermBackend};
-use ratatui::style::{Modifier, Style};
-use ratatui::text::Text;
-use ratatui::widgets::{Block, Borders, List, ListItem, ListState};
-use ratatui::{Frame, Terminal};
-use std::{env, fs};
-use std::error::Error;
-use std::ops::Deref;
-use std::path::PathBuf;
-use std::process::ExitCode;
+use ratatui::{
+    Terminal,
+    prelude::{Backend, CrosstermBackend},
+};
+use std::{env, fs, ops::Deref};
 use zerocopy::IntoBytes;
 mod gui;
-use gui::{file_selection_loop, render_ui, terminal_draw_loop};
-
-use std::fs::File;
-use std::io::{self, Read};
-use std::time::Duration;
+use gui::{file_selection_loop, terminal_draw_loop};
+use std::{
+    fs::File,
+    io::{self, Read},
+};
 
 enum FocusedSection {
     Nodes,
@@ -65,11 +59,7 @@ impl AppState {
     }
 }
 
-fn flatten_tree_mut<'a>(
-    node: &'a mut StructNode,
-    depth: usize,
-    out: &mut Vec<(usize, *mut StructNode)>,
-) {
+fn flatten_tree_mut(node: &mut StructNode, depth: usize, out: &mut Vec<(usize, *mut StructNode)>) {
     out.push((depth, node));
     if node.is_expanded {
         for child in &mut node.children {
@@ -146,8 +136,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         } else {
             eprintln!("Application encountered an unknown panic.");
         }
-        return Err(Box::new(std::io::Error::new(
-            std::io::ErrorKind::Other,
+        return Err(Box::new(std::io::Error::other(
             "Application crashed due to a panic",
         )));
     }

@@ -1,8 +1,6 @@
-use zerocopy::Ref;
-
-use crate::fxr::Section3Entry;
-use crate::fxr::util::parse_section_slice;
+use crate::fxr::{Section3Entry, util::parse_section_slice};
 use log::debug;
+use zerocopy::Ref;
 
 /// Parses Section3 entries from the provided binary data.
 ///

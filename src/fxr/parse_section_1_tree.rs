@@ -1,11 +1,10 @@
-use zerocopy::Ref;
-
-use crate::fxr::parse_section_3_tree::parse_section3_tree;
-use crate::fxr::util::parse_struct;
-use crate::fxr::{Section1Container, Section2Container};
-
 use super::Section3Entry;
+use crate::fxr::{
+    Section1Container, Section2Container, parse_section_3_tree::parse_section3_tree,
+    util::parse_struct,
+};
 use log::debug;
+use zerocopy::Ref;
 
 /// Parses the Section1 tree structure from the given binary data.
 ///

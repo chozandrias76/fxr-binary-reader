@@ -1,9 +1,10 @@
+use crate::fxr::{
+    Section4Container, Section4Entry, Section5Entry, Section6Entry,
+    parse_section_6_nested::parse_section6_nested,
+    util::{parse_section_slice, parse_struct},
+};
 use log::debug;
 use zerocopy::Ref;
-
-use crate::fxr::parse_section_6_nested::parse_section6_nested;
-use crate::fxr::util::{parse_section_slice, parse_struct};
-use crate::fxr::{Section4Container, Section4Entry, Section5Entry, Section6Entry};
 
 /// Parses a binary data structure starting at a given offset, extracting and printing details
 /// about `Section4`, `Section5`, and `Section6` entries.
@@ -48,25 +49,25 @@ use crate::fxr::{Section4Container, Section4Entry, Section5Entry, Section6Entry}
 ///     use fxr_binary_reader::fxr::Section6Entry;
 ///     // Sample binary data
 ///     let mut data = vec![0; mem::size_of::<Section4Container>()+mem::size_of::<Section4Entry>()+mem::size_of::<Section5Entry>()+mem::size_of::<Section6Entry>()];
-///     
+///
 ///     // section5_count = 1
 ///     data[8..12].copy_from_slice(&1u32.to_le_bytes());
-///     
+///
 ///     // section6_count = 1
 ///     data[12..16].copy_from_slice(&1u32.to_le_bytes());
-///     
+///
 ///     // section4_count = 1
 ///     data[16..20].copy_from_slice(&1u32.to_le_bytes());
-///     
+///
 ///     // section5_offset = 0x20
 ///     data[24..28].copy_from_slice(&0x20u32.to_le_bytes());
-///     
+///
 ///     // section6_offset = 0x28
 ///     data[32..36].copy_from_slice(&0x28u32.to_le_bytes());
-///     
+///
 ///     // section4_offset = 0x30
 ///     data[40..44].copy_from_slice(&0x30u32.to_le_bytes());
-///   
+///
 ///
 ///     // Parse Section4 tree starting at offset 0
 ///     let section_tree = parse_section4_tree(&data, 0)?;

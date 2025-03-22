@@ -1,7 +1,6 @@
+use super::U32Field;
 use log::debug;
 use zerocopy::{FromBytes, Immutable, KnownLayout, Ref};
-
-use super::U32Field;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ParseError {
@@ -370,16 +369,15 @@ pub fn parse_section_slice<'a, T: FromBytes + KnownLayout + Immutable>(
 ) -> Result<Ref<&'a [u8], [T]>, ParseError> {
     let entry_size = std::mem::size_of::<T>();
     let start = offset as usize;
-    let total_size =
-        entry_size
-            .checked_mul(count as usize)
-            .ok_or_else(|| ParseError::SizeOverflow {
-                entry_size,
-                count: count as usize,
-            })?;
+    let total_size = entry_size
+        .checked_mul(count as usize)
+        .ok_or(ParseError::SizeOverflow {
+            entry_size,
+            count: count as usize,
+        })?;
     let end = start
         .checked_add(total_size)
-        .ok_or_else(|| ParseError::SizeOverflow {
+        .ok_or(ParseError::SizeOverflow {
             entry_size,
             count: count as usize,
         })?;

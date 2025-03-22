@@ -1,14 +1,13 @@
-use std::error::Error;
-use std::io;
-use std::time::Duration;
-
 use crate::{AppState, FocusedSection};
 use crossterm::event::{self, Event, KeyCode};
-use ratatui::layout::{Constraint, Direction, Layout, Rect};
-use ratatui::prelude::{Backend, CrosstermBackend};
-use ratatui::style::{Modifier, Style};
-use ratatui::widgets::{Block, Borders, List, ListItem, ListState};
-use ratatui::{Frame, Terminal};
+use ratatui::{
+    Frame, Terminal,
+    layout::Rect,
+    prelude::{Backend, CrosstermBackend},
+    style::{Modifier, Style},
+    widgets::{Block, Borders, List, ListItem, ListState},
+};
+use std::{error::Error, io, time::Duration};
 
 pub fn render_ui(f: &mut Frame, state: &AppState) {
     let chunks = ratatui::layout::Layout::default()
@@ -169,7 +168,11 @@ pub fn file_selection_loop<B: Backend>(
                 .map(|file| ListItem::new(file.clone()))
                 .collect();
             let list = List::new(items)
-                .block(Block::default().title("Select a File").borders(Borders::ALL))
+                .block(
+                    Block::default()
+                        .title("Select a File")
+                        .borders(Borders::ALL),
+                )
                 .highlight_style(Style::default().add_modifier(Modifier::BOLD))
                 .highlight_symbol(">> ");
             f.render_stateful_widget(list, size, &mut list_state);
@@ -182,9 +185,7 @@ pub fn file_selection_loop<B: Backend>(
                 if key.kind == crossterm::event::KeyEventKind::Press {
                     match key.code {
                         KeyCode::Up => {
-                            if selected > 0 {
-                                selected -= 1;
-                            }
+                            selected = selected.saturating_sub(1);
                         }
                         KeyCode::Down => {
                             if selected < files.len() - 1 {
@@ -209,7 +210,7 @@ pub fn terminal_draw_loop(
     terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
     mut state: AppState,
 ) -> Result<(), Box<dyn Error>> {
-    Ok(loop {
+    loop {
         terminal.draw(|f| render_ui(f, &state))?;
 
         if event::poll(Duration::from_millis(10000))? {
@@ -300,14 +301,14 @@ pub fn terminal_draw_loop(
                                 state.resizing = true;
                             } else {
                                 // Check if the click is in the "Nodes" or "Fields" pane for dragging
-                                if mouse_event.column as u16 >= chunks[0].x
-                                    && (mouse_event.column as u16) < chunks[0].x + chunks[0].width
+                                if mouse_event.column >= chunks[0].x
+                                    && mouse_event.column < chunks[0].x + chunks[0].width
                                     && mouse_event.row >= chunks[0].y
                                     && mouse_event.row < chunks[0].y + chunks[0].height
                                 {
                                     state.dragging = Some(FocusedSection::Nodes);
-                                } else if mouse_event.column as u16 >= chunks[1].x
-                                    && (mouse_event.column as u16) < chunks[1].x + chunks[1].width
+                                } else if mouse_event.column >= chunks[1].x
+                                    && mouse_event.column < chunks[1].x + chunks[1].width
                                     && mouse_event.row >= chunks[1].y
                                     && mouse_event.row < chunks[1].y + chunks[1].height
                                 {
@@ -406,5 +407,6 @@ pub fn terminal_draw_loop(
                 _ => {}
             }
         }
-    })
+    }
+    Ok(())
 }

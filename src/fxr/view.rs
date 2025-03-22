@@ -1,8 +1,7 @@
 pub mod view {
-    use std::collections::BTreeMap;
-    use serde_reflection::{ContainerFormat, Format, Named, Samples, Tracer, TracerConfig};
-
     use crate::fxr::*;
+    use serde_reflection::{ContainerFormat, Format, Named, Samples, Tracer, TracerConfig};
+    use std::collections::BTreeMap;
 
     #[derive(serde::Serialize)]
     pub struct HeaderView<'a> {
@@ -55,17 +54,17 @@ pub mod view {
         let config = TracerConfig::default();
         let mut tracer = Tracer::new(config);
         let mut samples = Samples::new();
-    
+
         tracer.trace_value(&mut samples, sample).unwrap();
         let registry: BTreeMap<String, ContainerFormat> = tracer.registry().unwrap();
-    
+
         let struct_desc: &ContainerFormat = registry
             .get(name)
-            .expect(&format!("Type not found in registry: {}", name));
-    
+            .unwrap_or_else(|| panic!("Type not found in registry: {}", name));
+
         let mut fields = vec![];
         let mut children = vec![];
-    
+
         if let ContainerFormat::Struct(fields_vec) = struct_desc {
             for Named {
                 name: field_name,
@@ -74,16 +73,14 @@ pub mod view {
             {
                 // Extract the value of the field using serde_json
                 let field_value = serde_json::to_value(sample)
-                    .and_then(|v| Ok(v.get(field_name).cloned()))
-                    .unwrap_or_else(|_| Some(serde_json::Value::Null));
-        
+                    .map(|v| v.get(field_name).cloned())
+                    .unwrap_or(Some(serde_json::Value::Null));
+
                 // Handle TupleArray formatting
                 let formatted_value = if let Format::TupleArray { content, size } = field_type {
                     if let Some(serde_json::Value::Array(array)) = field_value {
-                        let array_values: Vec<String> = array
-                            .iter()
-                            .map(|v| format!("{:?}", v))
-                            .collect();
+                        let array_values: Vec<String> =
+                            array.iter().map(|v| format!("{:?}", v)).collect();
                         format!(
                             "TupleArray {{ content: {:?}, size: {} , value: Some(Array [{}]) }}",
                             content,
@@ -93,19 +90,18 @@ pub mod view {
                     } else {
                         format!(
                             "TupleArray {{ content: {:?}, size: {} , value: None }}",
-                            content,
-                            size
+                            content, size
                         )
                     }
                 } else {
                     format!("{:?}", field_value)
                 };
-        
+
                 fields.push((field_name.clone(), formatted_value));
-        
+
                 // Optional: resolve sub-structs from registry
                 if let Format::TypeName(child_type_name) = field_type {
-                    if let Some(_) = registry.get(child_type_name) {
+                    if registry.get(child_type_name).is_some() {
                         children.push(build_reflection_tree(&(), child_type_name));
                     }
                 }

@@ -1,0 +1,9 @@
+{
+  "code-runner.executorMap": {
+    "rust": "cargo run foo bar baz"
+  },
+  "cSpell.words": [
+    "mmap",
+    "zerocopy"
+  ]
+}

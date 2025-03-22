@@ -20,7 +20,7 @@ struct AppState {
     flattened: Vec<(usize, Rc<RefCell<StructNode>>)>,
     fields: Vec<(String, String)>,
     selected_file: String,
-    selected: usize,
+    selected_node: usize,
     node_scroll_offset: usize,
     field_scroll_offset: usize,
     focused_section: FocusedSection,
@@ -33,7 +33,7 @@ impl AppState {
     fn new(selected_file: String) -> Self {
         Self {
             selected_file,
-            selected: 0,
+            selected_node: 0,
             flattened: Vec::new(),
             fields: Vec::new(),
             node_scroll_offset: 0,

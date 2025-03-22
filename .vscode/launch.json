@@ -1,86 +1,89 @@
 {
-  // Use IntelliSense to learn about possible attributes.
-  // Hover to view descriptions of existing attributes.
-  // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
-  "version": "0.2.0",
-  "configurations": [
-      {
-          "type": "lldb",
-          "request": "launch",
-          "name": "Debug executable 'fxr-binary-reader'",
-          "cargo": {
-              "args": [
-                  "build",
-                  "--bin=fxr-binary-reader",
-                  "--package=fxr-binary-reader"
-              ],
-              "filter": {
-                  "name": "fxr-binary-reader",
-                  "kind": "bin"
-              }
-          },
-          "args": [
-          ],
-          "cwd": "${workspaceFolder}",
-          "env": {
-              "RUST_BACKTRACE": "1"
-          }
-      },
-      {
-          "type": "lldb",
-          "request": "launch",
-          "name": "Debug unit tests in executable 'fxr-binary-reader'",
-          "cargo": {
-              "args": [
-                  "test",
-                  "--no-run",
-                  "--bin=fxr-binary-reader",
-                  "--package=fxr-binary-reader"
-              ],
-              "filter": {
-                  "name": "fxr-binary-reader",
-                  "kind": "bin"
-              }
-          },
-          "args": [],
-          "cwd": "${workspaceFolder}"
-      },
-      {
-          "type": "lldb",
-          "request": "launch",
-          "name": "Debug library target",
-          "cargo": {
-              "args": [
-                  "build",
-                  "--lib",
-                  "--package=fxr-binary-reader"
-              ],
-              "filter": {
-                  "kind": "lib"
-              }
-          },
-          "args": [],
-          "cwd": "${workspaceFolder}",
-          "env": {
-              "RUST_BACKTRACE": "1"
-          }
-      },
-      {
-          "type": "lldb",
-          "request": "launch",
-          "name": "Run doctests",
-          "cargo": {
-              "args": [
-                  "test",
-                  "--doc",
-                  "--package=fxr-binary-reader"
-              ]
-          },
-          "args": [],
-          "cwd": "${workspaceFolder}",
-          "env": {
-              "RUST_BACKTRACE": "1"
-          }
-      }
-  ]
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "console": "externalTerminal",
+            "name": "Debug executable 'fxr-binary-reader'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=fxr-binary-reader",
+                    "--package=fxr-binary-reader"
+                ],
+                "filter": {
+                    "name": "fxr-binary-reader",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "RUST_BACKTRACE": "1"
+            }
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "console": "externalTerminal",
+            "name": "Debug unit tests in executable 'fxr-binary-reader'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bin=fxr-binary-reader",
+                    "--package=fxr-binary-reader"
+                ],
+                "filter": {
+                    "name": "fxr-binary-reader",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "console": "externalTerminal",
+            "request": "launch",
+            "name": "Debug library target",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--lib",
+                    "--package=fxr-binary-reader"
+                ],
+                "filter": {
+                    "kind": "lib"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "RUST_BACKTRACE": "1"
+            }
+        },
+        {
+            "type": "lldb",
+            "console": "externalTerminal",
+            "request": "launch",
+            "name": "Run doctests",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--doc",
+                    "--package=fxr-binary-reader"
+                ]
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "RUST_BACKTRACE": "1"
+            }
+        }
+    ]
 }

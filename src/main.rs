@@ -9,18 +9,12 @@ use fxr_binary_reader::fxr::{
 };
 use log::debug;
 use memmap2::Mmap;
-use ratatui::{
-    Terminal,
-    prelude::{Backend, CrosstermBackend},
-};
+use ratatui::{Terminal, prelude::CrosstermBackend};
 use std::{env, fs, ops::Deref};
 use zerocopy::IntoBytes;
 mod gui;
 use gui::{file_selection_loop, terminal_draw_loop};
-use std::{
-    fs::File,
-    io::{self, Read},
-};
+use std::{fs::File, io};
 
 enum FocusedSection {
     Nodes,

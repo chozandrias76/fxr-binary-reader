@@ -1,3 +1,4 @@
 /fixtures
 /target
 rustc-ice-*.txt
+fxr_binary_reader.log

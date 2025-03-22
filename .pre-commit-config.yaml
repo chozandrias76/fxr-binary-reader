@@ -14,3 +14,11 @@ repos:
   hooks:
       - id: commitlint
         stages: [commit-msg]
+- repo: local
+  hooks:
+    - id: cargo-test-docs
+      language: system
+      types: [rust]
+      name: cargo test --doc
+      entry: cargo test --doc
+      pass_filenames: false

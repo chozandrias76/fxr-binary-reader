@@ -1,17 +1,13 @@
+use chrono::DateTime;
+use crash_handler::{CrashContext, CrashEventResult, CrashHandler, make_crash_event};
 use crossterm::{
     event::{DisableMouseCapture, EnableMouseCapture},
     execute,
     terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
-use fxr_binary_reader::fxr::{
-    fxr_parser_with_sections::{ParsedFXR, parse_fxr},
-    view::view::{StructNode, build_reflection_tree},
-};
-use log::debug;
-use memmap2::Mmap;
+use fxr_binary_reader::fxr::view::view::StructNode;
 use ratatui::{Terminal, prelude::CrosstermBackend};
-use std::{env, fs, ops::Deref};
-use zerocopy::IntoBytes;
+use std::{cell::RefCell, env, fs, os::windows::fs::MetadataExt, rc::Rc, sync::Mutex};
 mod gui;
 use gui::{file_selection_loop, terminal_draw_loop};
 use std::{fs::File, io};
@@ -21,9 +17,9 @@ enum FocusedSection {
     Fields,
 }
 struct AppState {
-    root: StructNode,
-    flattened: Vec<(usize, *mut StructNode)>,
+    flattened: Vec<(usize, Rc<RefCell<StructNode>>)>,
     fields: Vec<(String, String)>,
+    selected_file: String,
     selected: usize,
     node_scroll_offset: usize,
     field_scroll_offset: usize,
@@ -34,15 +30,12 @@ struct AppState {
 }
 
 impl AppState {
-    fn new(mut root: StructNode) -> Self {
-        let mut flattened = vec![];
-        let fields: Vec<(String, String)> = root.fields.clone();
-        flatten_tree_mut(&mut root, 0, &mut flattened);
+    fn new(selected_file: String) -> Self {
         Self {
-            root,
-            fields,
-            flattened,
+            selected_file,
             selected: 0,
+            flattened: Vec::new(),
+            fields: Vec::new(),
             node_scroll_offset: 0,
             field_scroll_offset: 0,
             focused_section: FocusedSection::Fields,
@@ -53,21 +46,49 @@ impl AppState {
     }
 }
 
-fn flatten_tree_mut(node: &mut StructNode, depth: usize, out: &mut Vec<(usize, *mut StructNode)>) {
-    out.push((depth, node));
+fn flatten_tree_mut(
+    node: &mut StructNode,
+    depth: usize,
+    out: &mut Vec<(usize, Rc<RefCell<StructNode>>)>,
+) {
+    out.push((depth, Rc::new(RefCell::new(node.clone()))));
     if node.is_expanded {
         for child in &mut node.children {
             flatten_tree_mut(child, depth + 1, out);
         }
     }
-    debug!(
-        "Flattened tree: {:#?}",
-        out.iter()
-            .map(|(d, n)| (d, unsafe { &**n }.name.clone()))
-            .collect::<Vec<_>>()
-    );
 }
+
+fn setup() -> Result<(), Box<dyn std::error::Error>> {
+    let log_file = File::create("./fxr_binary_reader.log")?;
+    let subscriber = tracing_subscriber::fmt()
+        .with_writer(Mutex::new(log_file))
+        .finish();
+    tracing::subscriber::set_global_default(subscriber)?;
+
+    std::panic::set_hook(Box::new(|panic_info| {
+        tracing::error!("Application panicked: {}", panic_info);
+    }));
+
+    let handler = CrashHandler::attach(unsafe {
+        make_crash_event(move |context: &CrashContext| {
+            tracing::error!(
+                "Exception: {:x} at {:x}",
+                context.exception_code,
+                (*(*context.exception_pointers).ExceptionRecord).ExceptionAddress as usize
+            );
+
+            CrashEventResult::Handled(true)
+        })
+    })
+    .unwrap();
+    std::mem::forget(handler);
+
+    Ok(())
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let subscriber = setup();
     // Enable raw mode and set up the terminal
     enable_raw_mode()?;
     let mut stdout = io::stdout();
@@ -79,32 +100,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         // Get the current directory
         let current_dir = env::current_dir()?;
-        let files: Vec<String> = fs::read_dir(&current_dir)?
-            .filter_map(|entry| entry.ok())
-            .filter(|entry| entry.file_type().map(|ft| ft.is_file()).unwrap_or(false))
-            .filter_map(|entry: fs::DirEntry| {
-                let path = entry.path();
-                let extension = path.extension()?.to_str()?;
-                if extension == "fxr" {
-                    Some(entry.file_name().to_string_lossy().to_string())
-                } else {
-                    None
-                }
-            })
-            .collect();
+        let files = file_entries(&current_dir)?;
 
         // Let the user pick a file
         let selected_file = file_selection_loop(&mut terminal, &files)?;
 
-        // Open the selected file
-        let bin_path = current_dir.join(selected_file);
-        let file = File::open(bin_path)?;
-        let mmap = unsafe { Mmap::map(&file)? };
-        let data = &mmap.as_bytes();
-
-        let fxr: ParsedFXR<'_> = parse_fxr(data).unwrap();
-        let header_view: StructNode = build_reflection_tree(&fxr.header.deref(), "Header");
-        let state = AppState::new(header_view);
+        let state = AppState::new(selected_file);
 
         // Enter the main draw loop
         terminal_draw_loop(&mut terminal, state)?;
@@ -121,19 +122,77 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     )?;
     terminal.show_cursor()?;
 
-    // Handle any errors that occurred during execution
     if let Err(err) = result {
-        if let Some(string) = err.downcast_ref::<String>() {
-            eprintln!("Application encountered a panic: {}", string);
-        } else if let Some(&str_slice) = err.downcast_ref::<&str>() {
-            eprintln!("Application encountered a panic: {}", str_slice);
-        } else {
-            eprintln!("Application encountered an unknown panic.");
-        }
-        return Err(Box::new(std::io::Error::other(
-            "Application crashed due to a panic",
-        )));
+        let partial = "Application crashed due to a panic.".to_string();
+        let message = match env::var("RUST_BACKTRACE").unwrap_or_default().as_str() {
+            "1" => "Check fxr_binary_reader.log for more information..".to_string(),
+            _ => "Run with `RUST_BACKTRACE=1` for more information.".to_string(),
+        };
+        let full_message = format!("{} {}", partial, message);
+        return Err(Box::new(std::io::Error::other(full_message.to_string())));
     }
-
+    drop(subscriber);
     Ok(())
+}
+
+fn file_entries(
+    current_dir: &std::path::PathBuf,
+) -> Result<Vec<String>, Box<dyn std::error::Error>> {
+    fn format_file_size(size: u64) -> String {
+        const KB: u64 = 1024;
+        const MB: u64 = KB * 1024;
+        const GB: u64 = MB * 1024;
+
+        if size >= GB {
+            format!("{:.2} GB", size as f64 / GB as f64)
+        } else if size >= MB {
+            format!("{:.2} MB", size as f64 / MB as f64)
+        } else if size >= KB {
+            format!("{:.2} KB", size as f64 / KB as f64)
+        } else {
+            format!("{} B", size)
+        }
+    }
+    let files: Vec<String> = fs::read_dir(current_dir)?
+        .filter_map(|entry| entry.ok())
+        .filter(|entry| entry.file_type().map(|ft: fs::FileType| {
+            ft.is_file()
+        }).unwrap_or(false) && (
+            entry.file_name().into_string().map(|name| name.ends_with(".fxr")).unwrap_or(false)
+        ))
+        .map(|entry: fs::DirEntry| {
+            let metadata = entry.metadata().unwrap();
+            let file_attributes = metadata.file_attributes();
+            let creation_time = metadata.creation_time();
+            let last_access_time = metadata.last_access_time();
+            let last_write_time = metadata.last_write_time();
+            let file_size = metadata.file_size();
+
+            format!(
+                "{:<30} | Attrs: {:<10} | Created: {:<20} | Accessed: {:<20} | Modified: {:<20} | Size: {:<10}",
+                entry.file_name().to_string_lossy(),
+                file_attributes,
+                DateTime::from_timestamp(
+                    ((creation_time - 116444736000000000) / 10_000_000) as i64,
+                    0
+                )
+                .map(|dt| dt.format("%Y-%m-%d %H:%M:%S").to_string())
+                .unwrap_or_else(|| "Invalid Date".to_string()),
+                DateTime::from_timestamp(
+                    ((last_access_time - 116444736000000000) / 10_000_000) as i64,
+                    0
+                )
+                .map(|dt| dt.format("%Y-%m-%d %H:%M:%S").to_string())
+                .unwrap_or_else(|| "Invalid Date".to_string()),
+                DateTime::from_timestamp(
+                    ((last_write_time - 116444736000000000) / 10_000_000) as i64,
+                    0
+                )
+                .map(|dt| dt.format("%Y-%m-%d %H:%M:%S").to_string())
+                .unwrap_or_else(|| "Invalid Date".to_string()),
+                format_file_size(file_size),
+            )
+        })
+        .collect();
+    Ok(files)
 }

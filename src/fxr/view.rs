@@ -11,7 +11,7 @@ pub mod view {
 
     use log::debug;
 
-    #[derive(Debug)]
+    #[derive(Debug, Clone)]
     pub struct StructNode {
         pub name: String,
         pub fields: Vec<(String, String)>, // (field name, type name)

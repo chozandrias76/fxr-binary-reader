@@ -1,5 +1,10 @@
-use crate::{AppState, FocusedSection};
+use crate::{AppState, FocusedSection, flatten_tree_mut};
 use crossterm::event::{self, Event, KeyCode};
+use fxr_binary_reader::fxr::{
+    fxr_parser_with_sections::parse_fxr,
+    view::view::{StructNode, build_reflection_tree},
+};
+use memmap2::Mmap;
 use ratatui::{
     Frame, Terminal,
     layout::Rect,
@@ -7,9 +12,10 @@ use ratatui::{
     style::{Modifier, Style},
     widgets::{Block, Borders, List, ListItem, ListState},
 };
-use std::{error::Error, io, time::Duration};
+use std::{env, fs::File, io, ops::Deref, time::Duration};
+use zerocopy::IntoBytes;
 
-pub fn render_ui(f: &mut Frame, state: &AppState) {
+pub fn render_ui(frame: &mut Frame, state: &AppState) {
     let chunks = ratatui::layout::Layout::default()
         .direction(ratatui::layout::Direction::Horizontal)
         .constraints(
@@ -19,10 +25,10 @@ pub fn render_ui(f: &mut Frame, state: &AppState) {
             ]
             .as_ref(),
         )
-        .split(f.area());
+        .split(frame.area());
 
     #[cfg(feature = "debug")]
-    render_debug_overlays(f, &chunks);
+    render_debug_overlays(frame, &chunks);
 
     // Render the node list
     let visible_nodes = state
@@ -31,17 +37,17 @@ pub fn render_ui(f: &mut Frame, state: &AppState) {
         .enumerate()
         .skip(state.node_scroll_offset)
         .take(chunks[0].height as usize - 2) // Adjust for borders
-        .map(|(i, &(depth, ptr))| {
-            let node = unsafe { &*ptr };
+        .map(|(i, &(depth, ref ptr))| {
+            let node = ptr;
             let indent = "  ".repeat(depth);
-            let icon = if node.children.is_empty() {
+            let icon = if node.borrow().children.is_empty() {
                 "Ø"
-            } else if node.is_expanded {
+            } else if node.borrow().is_expanded {
                 "▼"
             } else {
                 "▶"
             };
-            let label = format!("{}{} {}", indent, icon, node.name);
+            let label = format!("{}{} {}", indent, icon, node.borrow().name);
             let style = if i == state.selected {
                 Style::default().add_modifier(Modifier::REVERSED)
             } else {
@@ -53,7 +59,7 @@ pub fn render_ui(f: &mut Frame, state: &AppState) {
 
     let list =
         List::new(visible_nodes).block(Block::default().borders(Borders::ALL).title("Nodes"));
-    f.render_widget(list, chunks[0]);
+    frame.render_widget(list, chunks[0]);
 
     // Render the scrollbar for the node list
     if state.flattened.len() > chunks[0].height as usize - 2 {
@@ -69,7 +75,7 @@ pub fn render_ui(f: &mut Frame, state: &AppState) {
             scrollbar_height as u16,
         );
 
-        f.render_widget(
+        frame.render_widget(
             Block::default().style(Style::default().bg(ratatui::style::Color::Gray)),
             scrollbar_rect,
         );
@@ -78,6 +84,7 @@ pub fn render_ui(f: &mut Frame, state: &AppState) {
     // Render the fields of the selected node
     let selected_node = unsafe { &*state.flattened[state.selected].1 };
     let visible_fields = selected_node
+        .borrow()
         .fields
         .iter()
         .skip(state.field_scroll_offset)
@@ -90,14 +97,14 @@ pub fn render_ui(f: &mut Frame, state: &AppState) {
 
     let fields_list =
         List::new(visible_fields).block(Block::default().borders(Borders::ALL).title("Fields"));
-    f.render_widget(fields_list, chunks[1]);
+    frame.render_widget(fields_list, chunks[1]);
 
     // Render the scrollbar for the fields list
-    if selected_node.fields.len() > chunks[1].height as usize - 2 {
+    if selected_node.borrow().fields.len() > chunks[1].height as usize - 2 {
         let scrollbar_height = (chunks[1].height as f32 - 2.0) * (chunks[1].height as f32 - 2.0)
-            / selected_node.fields.len() as f32;
+            / selected_node.borrow().fields.len() as f32;
         let scrollbar_offset = (chunks[1].height as f32 - 2.0) * state.field_scroll_offset as f32
-            / selected_node.fields.len() as f32;
+            / selected_node.borrow().fields.len() as f32;
 
         let scrollbar_rect = Rect::new(
             chunks[1].x + chunks[1].width - 1,
@@ -106,7 +113,7 @@ pub fn render_ui(f: &mut Frame, state: &AppState) {
             scrollbar_height as u16,
         );
 
-        f.render_widget(
+        frame.render_widget(
             Block::default().style(Style::default().bg(ratatui::style::Color::Gray)),
             scrollbar_rect,
         );
@@ -193,7 +200,10 @@ pub fn file_selection_loop<B: Backend>(
                             }
                         }
                         KeyCode::Enter => {
-                            return Ok(files[selected].clone());
+                            return Ok(files[selected]
+                                .split_once(".fxr")
+                                .map(|(prefix, _suffix)| format!("{}.fxr", prefix))
+                                .unwrap());
                         }
                         KeyCode::Esc => {
                             return Err("File selection canceled".into());
@@ -209,12 +219,29 @@ pub fn file_selection_loop<B: Backend>(
 pub fn terminal_draw_loop(
     terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
     mut state: AppState,
-) -> Result<(), Box<dyn Error>> {
-    loop {
-        terminal.draw(|f| render_ui(f, &state))?;
+) -> Result<(), anyhow::Error> {
+    // Open the selected file
+    let current_dir = env::current_dir()?;
 
-        if event::poll(Duration::from_millis(10000))? {
-            let terminal_size = terminal.size()?; // Get the terminal size
+    let bin_path = current_dir.join(state.selected_file.clone());
+    let file = File::open(bin_path)?;
+    let mmap = unsafe { Mmap::map(&file)? };
+    let data = &mmap.as_bytes();
+
+    let fxr = parse_fxr(data).unwrap();
+    let mut header_view: StructNode = build_reflection_tree(&fxr.header.deref(), "Header");
+    let mut flattened = vec![];
+    let fields: Vec<(String, String)> = header_view.fields.clone();
+    flatten_tree_mut(&mut header_view, 0, &mut flattened);
+    state.flattened = flattened;
+    state.fields = fields;
+    loop {
+        terminal
+            .draw(|f: &mut Frame<'_>| render_ui(f, &state))
+            .map_err(anyhow::Error::new)?;
+
+        if event::poll(Duration::from_millis(10000)).map_err(anyhow::Error::new)? {
+            let terminal_size = terminal.size().map_err(anyhow::Error::new)?; // Get the terminal size
 
             let chunks = ratatui::layout::Layout::default()
                 .direction(ratatui::layout::Direction::Horizontal)
@@ -227,7 +254,7 @@ pub fn terminal_draw_loop(
                 )
                 .split(Rect::new(0, 0, terminal_size.width, terminal_size.height));
 
-            match event::read()? {
+            match event::read().map_err(anyhow::Error::new)? {
                 Event::Key(key) => {
                     match key.code {
                         KeyCode::Char('q') => break,

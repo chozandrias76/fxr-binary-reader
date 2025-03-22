@@ -82,7 +82,7 @@ pub fn render_ui(frame: &mut Frame, state: &AppState) {
     }
 
     // Render the fields of the selected node
-    let selected_node = unsafe { &*state.flattened[state.selected].1 };
+    let selected_node = &*state.flattened[state.selected].1;
     let visible_fields = selected_node
         .borrow()
         .fields

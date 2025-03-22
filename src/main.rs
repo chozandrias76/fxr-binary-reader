@@ -122,7 +122,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     )?;
     terminal.show_cursor()?;
 
-    if let Err(err) = result {
+    if let Err(_err) = result {
         let partial = "Application crashed due to a panic.".to_string();
         let message = match env::var("RUST_BACKTRACE").unwrap_or_default().as_str() {
             "1" => "Check fxr_binary_reader.log for more information..".to_string(),

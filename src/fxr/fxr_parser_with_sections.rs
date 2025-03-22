@@ -44,7 +44,7 @@ pub struct ParsedFXR<'a> {
 /// use log::error;
 ///
 /// fn main() -> anyhow::Result<()> {
-///     let path = PathBuf::from("./f000302421.fxr");
+///     let path = PathBuf::from("./fixtures/f000302421.fxr");
 ///     let file = File::open(path)?;
 ///     let mmap = unsafe { Mmap::map(&file)? };
 ///     let data = &mmap.as_bytes();

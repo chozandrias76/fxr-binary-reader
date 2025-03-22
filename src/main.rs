@@ -7,7 +7,9 @@ use crossterm::{
 };
 use fxr_binary_reader::fxr::view::view::StructNode;
 use ratatui::{Terminal, prelude::CrosstermBackend};
-use std::{cell::RefCell, env, fs, os::windows::fs::MetadataExt, rc::Rc, sync::Mutex};
+use std::{
+    cell::RefCell, env, fs, os::windows::fs::MetadataExt, path::PathBuf, rc::Rc, sync::Mutex,
+};
 mod gui;
 use gui::{file_selection_loop, terminal_draw_loop};
 use std::{fs::File, io};
@@ -19,7 +21,7 @@ enum FocusedSection {
 struct AppState {
     flattened: Vec<(usize, Rc<RefCell<StructNode>>)>,
     fields: Vec<(String, String)>,
-    selected_file: String,
+    selected_file: PathBuf,
     selected_node: usize,
     node_scroll_offset: usize,
     field_scroll_offset: usize,
@@ -30,7 +32,7 @@ struct AppState {
 }
 
 impl AppState {
-    fn new(selected_file: String) -> Self {
+    fn new(selected_file: PathBuf) -> Self {
         Self {
             selected_file,
             selected_node: 0,
@@ -103,7 +105,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let files = file_entries(&current_dir)?;
 
         // Let the user pick a file
-        let selected_file = file_selection_loop(&mut terminal, &files)?;
+        let selected_file_index: usize = 0;
+        let selected_file = file_selection_loop(&mut terminal, files, selected_file_index)?;
 
         let state = AppState::new(selected_file);
 
@@ -137,7 +140,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 fn file_entries(
     current_dir: &std::path::PathBuf,
-) -> Result<Vec<String>, Box<dyn std::error::Error>> {
+) -> Result<(Vec<PathBuf>, Vec<String>), Box<dyn std::error::Error>> {
     fn format_file_size(size: u64) -> String {
         const KB: u64 = 1024;
         const MB: u64 = KB * 1024;
@@ -153,14 +156,21 @@ fn file_entries(
             format!("{} B", size)
         }
     }
-    let files: Vec<String> = fs::read_dir(current_dir)?
+
+    let mut files = Vec::new();
+    let file_data: Vec<String> = fs::read_dir(current_dir)?
         .filter_map(|entry| entry.ok())
-        .filter(|entry| entry.file_type().map(|ft: fs::FileType| {
-            ft.is_file()
-        }).unwrap_or(false) && (
-            entry.file_name().into_string().map(|name| name.ends_with(".fxr")).unwrap_or(false)
-        ))
+        .filter(|entry| {
+            entry.file_type().unwrap().is_dir()
+                || entry
+                    .file_name()
+                    .into_string()
+                    .map(|name| name.ends_with(".fxr"))
+                    .unwrap_or(false)
+        })
         .map(|entry: fs::DirEntry| {
+            let entry_as_pathbuf = entry.path();
+            files.push(entry_as_pathbuf.clone()); // Store the PathBuf in the vector
             let metadata = entry.metadata().unwrap();
             let file_attributes = metadata.file_attributes();
             let creation_time = metadata.creation_time();
@@ -194,5 +204,6 @@ fn file_entries(
             )
         })
         .collect();
-    Ok(files)
+
+    Ok((files, file_data)) // Return both the Vec<PathBuf> and the Vec<String>
 }

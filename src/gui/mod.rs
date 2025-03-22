@@ -1,4 +1,4 @@
-use crate::{AppState, FocusedSection, flatten_tree_mut};
+use crate::{AppState, FocusedSection, file_entries, flatten_tree_mut};
 use crossterm::event::{self, Event, KeyCode};
 use fxr_binary_reader::fxr::{
     fxr_parser_with_sections::parse_fxr,
@@ -12,7 +12,7 @@ use ratatui::{
     style::{Modifier, Style},
     widgets::{Block, Borders, List, ListItem, ListState},
 };
-use std::{env, fs::File, io, ops::Deref, time::Duration};
+use std::{env, fs::File, io, ops::Deref, path::PathBuf, time::Duration};
 use zerocopy::IntoBytes;
 
 pub fn render_ui(frame: &mut Frame, state: &AppState) {
@@ -161,9 +161,10 @@ fn render_debug_overlays(f: &mut Frame<'_>, chunks: &std::rc::Rc<[Rect]>) {
 
 pub fn file_selection_loop<B: Backend>(
     terminal: &mut Terminal<B>,
-    files: &[String],
-) -> Result<String, Box<dyn std::error::Error>> {
-    let mut selected = 0;
+    files: (Vec<PathBuf>, Vec<String>), // Use PathBuf instead of String
+    mut selected: usize,                // Add selected index as a parameter
+) -> Result<PathBuf, Box<dyn std::error::Error>> {
+    let current_dir = env::current_dir()?;
 
     loop {
         let mut list_state = ListState::default();
@@ -171,8 +172,9 @@ pub fn file_selection_loop<B: Backend>(
         terminal.draw(|f| {
             let size = f.area();
             let items: Vec<ListItem> = files
+                .0
                 .iter()
-                .map(|file| ListItem::new(file.clone()))
+                .map(|file| ListItem::new(file.display().to_string())) // Display the path as a string
                 .collect();
             let list = List::new(items)
                 .block(
@@ -185,25 +187,49 @@ pub fn file_selection_loop<B: Backend>(
             f.render_stateful_widget(list, size, &mut list_state);
         })?;
 
-        // Use `poll` to wait for a key event with a timeout
         if crossterm::event::poll(Duration::from_millis(50))? {
             if let Event::Key(key) = event::read()? {
-                // Only handle key presses (ignore repeats)
                 if key.kind == crossterm::event::KeyEventKind::Press {
                     match key.code {
                         KeyCode::Up => {
-                            selected = selected.saturating_sub(1);
-                        }
-                        KeyCode::Down => {
-                            if selected < files.len() - 1 {
-                                selected += 1;
+                            if !files.0.is_empty() {
+                                selected = selected.saturating_sub(1);
                             }
                         }
-                        KeyCode::Enter => {
-                            return Ok(files[selected]
-                                .split_once(".fxr")
-                                .map(|(prefix, _suffix)| format!("{}.fxr", prefix))
-                                .unwrap());
+                        KeyCode::Down => {
+                            if !files.0.is_empty() {
+                                selected = selected.saturating_add(1).min(files.0.len() - 1);
+                            }
+                        }
+                        KeyCode::Right | KeyCode::Enter => {
+                            let selected_route = files.0.get(selected).unwrap_or(&current_dir);
+                            if selected_route.is_dir() {
+                                let dir_entries = file_entries(selected_route)?; // Pass PathBuf directly
+                                return file_selection_loop(terminal, dir_entries, 0);
+                            }
+                            if selected_route.is_file() {
+                                return Ok(selected_route.clone());
+                            }
+                        }
+                        KeyCode::Left => {
+                            if let Some(parent) = files
+                                .0
+                                .get(selected)
+                                .unwrap_or(&current_dir)
+                                .parent()
+                                .unwrap()
+                                .parent()
+                            {
+                                let dir_entries = file_entries(&parent.to_path_buf())?;
+                                let current_dir_name = files.0[selected].file_name();
+                                let new_selected = dir_entries
+                                    .0
+                                    .iter()
+                                    .position(|entry| entry.file_name() == current_dir_name)
+                                    .unwrap_or(0);
+                                // panic!("Parent directory selected: {:?}", parent);
+                                return file_selection_loop(terminal, dir_entries, new_selected);
+                            }
                         }
                         KeyCode::Esc => {
                             return Err("File selection canceled".into());
@@ -220,21 +246,26 @@ pub fn terminal_draw_loop(
     terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
     mut state: AppState,
 ) -> Result<(), anyhow::Error> {
-    // Open the selected file
+    // Resolve the selected file path relative to the current directory
     let current_dir = env::current_dir()?;
+    let bin_path = current_dir.join(&state.selected_file); // Ensure the path is correctly joined
 
-    let bin_path = current_dir.join(state.selected_file.clone());
-    let file = File::open(bin_path)?;
+    // Open the selected file
+    let file = File::open(&bin_path)
+        .map_err(|e| anyhow::anyhow!("Failed to open file '{}': {}", bin_path.display(), e))?;
     let mmap = unsafe { Mmap::map(&file)? };
     let data = &mmap.as_bytes();
 
-    let fxr = parse_fxr(data).unwrap();
+    // Parse the file
+    let fxr = parse_fxr(data)
+        .map_err(|e| anyhow::anyhow!("Failed to parse file '{}': {}", bin_path.display(), e))?;
     let mut header_view: StructNode = build_reflection_tree(&fxr.header.deref(), "Header");
     let mut flattened = vec![];
     let fields: Vec<(String, String)> = header_view.fields.clone();
     flatten_tree_mut(&mut header_view, 0, &mut flattened);
     state.flattened = flattened;
     state.fields = fields;
+
     loop {
         terminal
             .draw(|f: &mut Frame<'_>| render_ui(f, &state))

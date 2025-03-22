@@ -20,9 +20,6 @@
               }
           },
           "args": [
-              "--bin-path",
-              "D:\\Elden Ring Tools\\fxr-binary-reader\\f000302421.fxr"
-              // "user_arg2"
           ],
           "cwd": "${workspaceFolder}",
           "env": {

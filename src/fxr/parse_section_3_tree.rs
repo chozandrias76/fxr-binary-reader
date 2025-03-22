@@ -2,6 +2,7 @@ use zerocopy::Ref;
 
 use crate::fxr::Section3Entry;
 use crate::fxr::util::parse_section_slice;
+use log::debug;
 
 /// Parses Section3 entries from the provided binary data.
 ///
@@ -38,6 +39,7 @@ use crate::fxr::util::parse_section_slice;
 /// ```rust
 /// use fxr_binary_reader::fxr::parse_section_3_tree::parse_section3_tree;
 /// use fxr_binary_reader::fxr::Section3Entry;
+/// use log::debug;
 ///
 /// let data: &[u8] = &[0x0; 1000];
 /// let offset: u32 = 0x10;
@@ -46,7 +48,7 @@ use crate::fxr::util::parse_section_slice;
 /// let entries = parse_section3_tree(data, offset, count);
 ///
 /// for entry in entries.iter() {
-///   println!("{:?}", entry);
+///   debug!("{:?}", entry);
 /// }
 ///
 /// ```
@@ -58,7 +60,7 @@ pub fn parse_section3_tree(
     let entries = parse_section_slice::<Section3Entry>(data, offset, count, "Section3")?;
     for (i, entry) in entries.iter().enumerate() {
         let ptr = entry as *const _ as usize - data.as_ptr() as usize;
-        println!("Section3[{}] @ 0x{:08X}: {:#?}", i, ptr, entry);
+        debug!("Section3[{}] @ 0x{:08X}: {:#?}", i, ptr, entry);
     }
 
     Ok(entries)

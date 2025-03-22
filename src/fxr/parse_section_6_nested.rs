@@ -1,3 +1,4 @@
+use log::debug;
 use zerocopy::Ref;
 
 use crate::fxr::util::{ParseError, parse_section_slice, parse_struct};
@@ -8,20 +9,20 @@ use crate::fxr::{
 
 #[derive(Debug)]
 pub struct ParsedSection6<'a> {
-    pub section11: Option<Ref<&'a[u8], [Section11Entry]>>,
+    pub section11: Option<Ref<&'a [u8], [Section11Entry]>>,
     pub section10: Option<ParsedSection10<'a>>,
     pub section7: Option<ParsedSection7<'a>>,
 }
 
 #[derive(Debug)]
 pub struct ParsedSection10<'a> {
-    pub container: Ref<&'a[u8], Section10Container>,
-    pub section11: Option<Ref<&'a[u8], [Section11Entry]>>,
+    pub container: Ref<&'a [u8], Section10Container>,
+    pub section11: Option<Ref<&'a [u8], [Section11Entry]>>,
 }
 
 #[derive(Debug)]
 pub struct ParsedSection7<'a> {
-    pub container: Ref<&'a[u8], Section7Container>,
+    pub container: Ref<&'a [u8], Section7Container>,
 }
 
 /// Parses nested sections within Section6
@@ -101,7 +102,7 @@ pub struct ParsedSection7<'a> {
 ///   let section11 = parsed.section11.unwrap();
 ///   let section11 = section11.get(0).unwrap();
 ///   assert_eq!(section11.data, u32::from_ne_bytes([0x20, 0x00, 0x00, 0x00]));
-/// 
+///
 ///   assert!(parsed.section10.is_some());
 ///   let section10 = parsed.section10.unwrap();
 ///   let section10 = section10.container;
@@ -113,7 +114,7 @@ pub struct ParsedSection7<'a> {
 ///   let section7 = section7.container;
 ///   assert_eq!(section7.section11_count, 0x01, "section11_count should be 1");
 ///   assert_eq!(section7.section11_offset, 0x64, "section11_offset should be 100");
-/// 
+///
 ///   assert_eq!(section7.section8_count, 0x01, "section8_count should be 1");
 ///   assert_eq!(section7.section8_offset, 0x6C, "section8_offset should be 108");
 ///
@@ -125,7 +126,7 @@ pub fn parse_section6_nested<'a>(
     entry: &crate::fxr::Section6Entry,
     index: usize,
 ) -> Result<ParsedSection6<'a>, ParseError> {
-    println!("Parsing nested sections in Section6[{}]", index);
+    debug!("Parsing nested sections in Section6[{}]", index);
 
     let mut parsed_section6 = ParsedSection6 {
         section11: None,
@@ -153,10 +154,10 @@ pub fn parse_section6_nested<'a>(
         parsed_section6.section11 = Some(section11);
         for (i, v) in section11.iter().enumerate() {
             let ptr = v as *const _ as usize - data.as_ptr() as usize;
-            println!("  Section11[{}] @ 0x{:08X}: {:#?}", i, ptr, v);
+            debug!("  Section11[{}] @ 0x{:08X}: {:#?}", i, ptr, v);
         }
     } else {
-        println!(
+        debug!(
             "  Skipping Section11[] parsing for Section6[{}]: section11_count1 is 0",
             index
         );
@@ -178,7 +179,7 @@ pub fn parse_section6_nested<'a>(
             entry.section10_offset,
             &format!("Section6[{}]::Section10", index),
         )?;
-        println!(
+        debug!(
             "  Section10 @ 0x{:08X}: {:#?}",
             entry.section10_offset, container
         );
@@ -208,10 +209,10 @@ pub fn parse_section6_nested<'a>(
             parsed_section10.section11 = Some(entries);
             for (i, entry) in entries.iter().enumerate() {
                 let ptr = entry as *const _ as usize - data.as_ptr() as usize;
-                println!("  Section11[{}] @ 0x{:08X}: {:#?}", i, ptr, entry);
+                debug!("  Section11[{}] @ 0x{:08X}: {:#?}", i, ptr, entry);
             }
         } else {
-            println!(
+            debug!(
                 "  Skipping nested Section11[] parsing in Section10 for Section6[{}]: section11_count is 0",
                 index
             );
@@ -219,7 +220,7 @@ pub fn parse_section6_nested<'a>(
 
         parsed_section6.section10 = Some(parsed_section10);
     } else {
-        println!(
+        debug!(
             "  Skipping Section10 parsing for Section6[{}]: section10_count is 0",
             index
         );
@@ -254,7 +255,7 @@ pub fn parse_section6_nested<'a>(
 
         parsed_section6.section7 = Some(ParsedSection7 { container });
     } else {
-        println!(
+        debug!(
             "  Skipping Section7 parsing for Section6[{}]: section7_count1 is 0",
             index
         );

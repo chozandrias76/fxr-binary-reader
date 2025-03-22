@@ -1,3 +1,4 @@
+use log::debug;
 use zerocopy::{FromBytes, Immutable, KnownLayout, Ref};
 
 use super::U32Field;
@@ -94,10 +95,10 @@ where
     let entries = parse_section_slice::<T>(data, offset, count, label)
         .map_err(|e| anyhow::anyhow!("Failed to parse {label} entries: {e}"))?;
 
-    println!("{label} entries ({}):", entries.len());
+    debug!("{label} entries ({}):", entries.len());
     for (i, entry) in entries.iter().enumerate() {
         let ptr = entry as *const _ as usize;
-        println!(
+        debug!(
             "  {}[{}] @ 0x{:08X} = 0x{:08X}",
             label,
             i,
@@ -132,6 +133,7 @@ where
 /// use anyhow::Result;
 /// use fxr_binary_reader::fxr::util::parse_struct;
 /// use zerocopy_derive::{Immutable, KnownLayout, FromBytes};
+/// use log::debug;
 ///
 /// #[repr(C)]
 /// #[derive(FromBytes, KnownLayout, Immutable, Debug)]
@@ -215,7 +217,7 @@ where
 ///  assert_eq!(entry.group4.field13, 13, "{}", format!("field13 was {}", entry.group4.field13).as_str());
 ///  assert_eq!(entry.group4.field14, 14, "{}", format!("field14 was {}", entry.group4.field14).as_str());
 ///
-///  println!("Parsed struct: {:?}", entry);
+///  debug!("Parsed struct: {:?}", entry);
 ///  Ok(())
 ///}
 ///```
@@ -225,9 +227,9 @@ pub fn parse_struct<'a, T: FromBytes + KnownLayout + Immutable>(
     label: &str,
 ) -> Result<Ref<&'a [u8], T>, ParseError> {
     let size = std::mem::size_of::<T>();
-    println!("Struct size: {}", size);
-    println!("Data length: {}", data.len());
-    println!("Offset: {}", offset);
+    debug!("Struct size: {}", size);
+    debug!("Data length: {}", data.len());
+    debug!("Offset: {}", offset);
 
     if data.len() < size {
         return Err(ParseError::BufferTooSmall {
@@ -243,7 +245,7 @@ pub fn parse_struct<'a, T: FromBytes + KnownLayout + Immutable>(
     }
 
     let end = offset as usize + size;
-    println!("End index: {}", end);
+    debug!("End index: {}", end);
 
     // Ensure the slice length matches the expected struct size
     if end > data.len() {
@@ -255,7 +257,7 @@ pub fn parse_struct<'a, T: FromBytes + KnownLayout + Immutable>(
 
     // Attempt to parse the struct
     let slice = &data[offset as usize..end];
-    println!("Slice length: {}, Slice: {:02X?}", slice.len(), slice);
+    debug!("Slice length: {}, Slice: {:02X?}", slice.len(), slice);
 
     Ref::from_bytes(slice).map_err(|_| ParseError::ParseFailed {
         label: label.to_string(),
@@ -297,6 +299,7 @@ pub fn parse_struct<'a, T: FromBytes + KnownLayout + Immutable>(
 /// use anyhow::Result;
 /// use fxr_binary_reader::fxr::util::parse_section_slice;
 /// use zerocopy_derive::{Immutable, KnownLayout, FromBytes};
+/// use log::debug;
 ///
 /// #[repr(C)]
 /// #[derive(FromBytes, KnownLayout, Immutable, Debug)]
@@ -355,7 +358,7 @@ pub fn parse_struct<'a, T: FromBytes + KnownLayout + Immutable>(
 ///     assert_eq!(entry.field13, 13);
 ///     assert_eq!(entry.field14, 14);
 ///
-///     println!("Parsed slice: {:?}", slice);
+///     debug!("Parsed slice: {:?}", slice);
 ///     Ok(())
 /// }
 /// ```

@@ -1,3 +1,4 @@
+use log::debug;
 use zerocopy::Ref;
 
 use crate::fxr::parse_section_6_nested::parse_section6_nested;
@@ -79,7 +80,7 @@ use crate::fxr::{Section4Container, Section4Entry, Section5Entry, Section6Entry}
 /// ```
 pub fn parse_section4_tree(data: &[u8], offset: u32) -> anyhow::Result<ParsedSection4Tree> {
     let container = parse_struct::<Section4Container>(data, offset, "Section4Container")?;
-    println!("Section4Container @ 0x{:08X}: {:#?}", offset, container);
+    debug!("Section4Container @ 0x{:08X}: {:#?}", offset, container);
 
     let section4_entries = if container.section4_count > 0 {
         let entries = parse_section_slice::<Section4Entry>(
@@ -114,7 +115,7 @@ pub fn parse_section4_tree(data: &[u8], offset: u32) -> anyhow::Result<ParsedSec
         )?;
         for (i, entry) in entries.iter().enumerate() {
             let ptr = entry as *const _ as usize - data.as_ptr() as usize;
-            println!("Section6[{}] @ 0x{:08X}: {:#?}", i, ptr, entry);
+            debug!("Section6[{}] @ 0x{:08X}: {:#?}", i, ptr, entry);
             parse_section6_nested(data, entry, i)?;
         }
         Some(entries)

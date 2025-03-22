@@ -1,3 +1,4 @@
+use log::debug;
 use zerocopy::Ref;
 
 use crate::fxr::util::parse_section_slice;
@@ -49,7 +50,7 @@ pub fn parse_section7_nested<'a>(
     container: &crate::fxr::Section7Container,
     label: &str,
 ) -> anyhow::Result<ParsedSection7Nested<'a>> {
-    println!("{}: {:#?}", label, container);
+    debug!("{}: {:#?}", label, container);
 
     let mut parsed_section7 = ParsedSection7Nested {
         section11: Vec::new(),

@@ -10,8 +10,26 @@ path = "src/lib.rs"
 [dependencies]
 anyhow = "1.0"
 clap = { version = "4.0", features = ["derive"] }
+crossterm = "0.28.1"
 insta = "1.42.2"
+log = "0.4"
 memmap2 = "*"
+ratatui = "0.29.0"
+serde = { version = "1", features = ["derive"] }
+serde_json = "*"
+serde-reflection = "0.5.0"
 thiserror = "2"
-zerocopy-derive = "*"
-zerocopy = "*"
+zerocopy = { version = "0.8.24" }
+zerocopy-derive = "0.8.24"
+
+[features]
+debug = []
+[profile.release]
+opt-level = 3
+lto = true
+debug = false
+panic = "abort"
+[profile.dev]
+opt-level = 0
+debug = true
+panic = "unwind"

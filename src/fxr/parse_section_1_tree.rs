@@ -5,6 +5,7 @@ use crate::fxr::util::parse_struct;
 use crate::fxr::{Section1Container, Section2Container};
 
 use super::Section3Entry;
+use log::debug;
 
 /// Parses the Section1 tree structure from the given binary data.
 ///
@@ -40,12 +41,12 @@ use super::Section3Entry;
 ///
 /// ```rust
 /// use fxr_binary_reader::fxr::parse_section_1_tree::parse_section1_tree;
-///
+/// use log::error;
 /// // Example 1: Provide at least 16 bytes for Section1
 /// let data: &[u8] = &[0x00; 16]; // 16 bytes of zero
 /// let offset: u32 = 0x10;
 /// if let Err(e) = parse_section1_tree(data, offset) {
-///     eprintln!("Failed to parse Section1 tree: {}", e);
+///     error!("Failed to parse Section1 tree: {}", e);
 /// }
 ///
 /// // Example 2: Provide enough bytes for Section1, Section2, and Section3
@@ -56,12 +57,12 @@ use super::Section3Entry;
 /// ];
 /// let offset: u32 = 0x00;
 /// if let Err(e) = parse_section1_tree(data, offset) {
-///     eprintln!("Failed to parse Section1 tree: {}", e);
+///     error!("Failed to parse Section1 tree: {}", e);
 /// }
 /// ```
 pub fn parse_section1_tree(data: &[u8], offset: u32) -> anyhow::Result<ParsedSections> {
     let section1 = parse_struct::<Section1Container>(data, offset, "Section1")?;
-    println!("Section1 @ 0x{:08X}: {:#?}", offset, section1);
+    debug!("Section1 @ 0x{:08X}: {:#?}", offset, section1);
 
     let mut section2 = None;
     let mut section3 = None;
@@ -73,7 +74,7 @@ pub fn parse_section1_tree(data: &[u8], offset: u32) -> anyhow::Result<ParsedSec
             section2_offset,
             "Section2",
         )?);
-        println!("Section2 @ 0x{:08X}: {:#?}", section2_offset, section2);
+        debug!("Section2 @ 0x{:08X}: {:#?}", section2_offset, section2);
 
         if let Some(ref sec2) = section2 {
             if sec2.section3_count > 0 {

@@ -5,23 +5,23 @@ use crossterm::{
     execute,
     terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
-use fxr_binary_reader::fxr::view::view::StructNode;
+use fxr_binary_reader::fxr::fxr_parser_with_sections::{ParsedFXR, parse_fxr};
 use ratatui::{Terminal, prelude::CrosstermBackend};
-use std::{
-    cell::RefCell, env, fs, os::windows::fs::MetadataExt, path::PathBuf, rc::Rc, sync::Mutex,
-};
+use ratatui_tree_widget::{TreeItem, TreeState};
+use std::{env, fs, io::Read, os::windows::fs::MetadataExt, path::PathBuf, sync::Mutex};
 mod gui;
-use gui::{file_selection_loop, terminal_draw_loop};
+use gui::{build_root_tree, file_selection_loop, terminal_draw_loop};
 use std::{fs::File, io};
 
 enum FocusedSection {
     Nodes,
     Fields,
 }
-struct AppState {
-    flattened: Vec<(usize, Rc<RefCell<StructNode>>)>,
+struct AppState<'a> {
+    // flattened: Vec<(usize, Rc<RefCell<StructNode>>)>,
     fields: Vec<(String, String)>,
     selected_file: PathBuf,
+    fxr: Option<ParsedFXR<'a>>,
     selected_node: usize,
     node_scroll_offset: usize,
     field_scroll_offset: usize,
@@ -29,37 +29,68 @@ struct AppState {
     dragging: Option<FocusedSection>, // Track which section's scrollbar is being dragged
     resizing: bool,                   // Track if the user is resizing the panes
     node_pane_width: u16,             // Width of the "Nodes" pane in percentage
+    tree_state: TreeState,            // Placeholder for tree state management
+    pub tree_root: Option<TreeItem<'a>>, // Placeholder for tree state management
 }
 
-impl AppState {
-    fn new(selected_file: PathBuf) -> Self {
+impl<'a> Default for AppState<'a> {
+    fn default() -> Self {
         Self {
-            selected_file,
+            selected_file: PathBuf::new(),
             selected_node: 0,
-            flattened: Vec::new(),
+            // flattened: Vec::new(),
             fields: Vec::new(),
             node_scroll_offset: 0,
             field_scroll_offset: 0,
+            fxr: None,
             focused_section: FocusedSection::Fields,
             dragging: None,
             resizing: false,
             node_pane_width: 70, // Default to 70% width for the "Nodes" pane
+            tree_state: TreeState::default(),
+            tree_root: None,
         }
+    }
+}
+fn load_file_data(file_path: &PathBuf) -> Result<Vec<u8>, anyhow::Error> {
+    let mut file = File::open(file_path)
+        .map_err(|e| anyhow::anyhow!("Failed to open file '{}': {}", file_path.display(), e))?;
+    let mut file_data = Vec::new();
+    file.read_to_end(&mut file_data)
+        .map_err(|e| anyhow::anyhow!("Failed to read file '{}': {}", file_path.display(), e))?;
+    Ok(file_data)
+}
+impl<'a> AppState<'a> {
+    fn new(selected_file: PathBuf, file_data: &'a [u8]) -> Result<Self, anyhow::Error> {
+        let mut ret = Self::default();
+
+        // Parse the file
+        let fxr = parse_fxr(file_data).map_err(|e| {
+            anyhow::anyhow!("Failed to parse file '{}': {}", selected_file.display(), e)
+        })?;
+        ret.fxr = Some(fxr);
+        let root_tree = build_root_tree(&ret);
+
+        Ok(Self {
+            selected_file,
+            tree_root: Some(root_tree),
+            ..ret
+        })
     }
 }
 
-fn flatten_tree_mut(
-    node: &mut StructNode,
-    depth: usize,
-    out: &mut Vec<(usize, Rc<RefCell<StructNode>>)>,
-) {
-    out.push((depth, Rc::new(RefCell::new(node.clone()))));
-    if node.is_expanded {
-        for child in &mut node.children {
-            flatten_tree_mut(child, depth + 1, out);
-        }
-    }
-}
+// fn flatten_tree_mut(
+//     node: &mut StructNode,
+//     depth: usize,
+//     out: &mut Vec<(usize, Rc<RefCell<StructNode>>)>,
+// ) {
+//     out.push((depth, Rc::new(RefCell::new(node.clone()))));
+//     if node.is_expanded {
+//         for child in &mut node.children {
+//             flatten_tree_mut(child, depth + 1, out);
+//         }
+//     }
+// }
 
 fn setup() -> Result<(), Box<dyn std::error::Error>> {
     let log_file = File::create("./fxr_binary_reader.log")?;
@@ -91,32 +122,30 @@ fn setup() -> Result<(), Box<dyn std::error::Error>> {
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let subscriber = setup();
-    // Enable raw mode and set up the terminal
     enable_raw_mode()?;
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
-    // Ensure cleanup happens even if the program panics
     let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        // Get the current directory
         let current_dir = env::current_dir()?;
         let files = file_entries(&current_dir)?;
 
-        // Let the user pick a file
         let selected_file_index: usize = 0;
         let selected_file = file_selection_loop(&mut terminal, files, selected_file_index)?;
 
-        let state = AppState::new(selected_file);
+        // Load file data
+        let file_data = load_file_data(&selected_file)?;
 
-        // Enter the main draw loop
+        // Initialize AppState with file data
+        let state = AppState::new(selected_file, &file_data)?;
+
         terminal_draw_loop(&mut terminal, state)?;
 
         Ok::<(), Box<dyn std::error::Error>>(())
     }));
 
-    // Cleanup terminal state
     disable_raw_mode()?;
     execute!(
         terminal.backend_mut(),

@@ -1,4 +1,4 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use zerocopy_derive::{FromBytes, Immutable, IntoBytes, KnownLayout};
 
 pub mod fxr_parser_with_sections;
@@ -175,7 +175,7 @@ pub struct Section6Entry {
 }
 
 #[repr(C)]
-#[derive(Debug, FromBytes, IntoBytes, Immutable, KnownLayout)]
+#[derive(Debug, FromBytes, IntoBytes, Immutable, KnownLayout, Serialize, Deserialize)]
 pub struct Section1Container {
     unk00: u32,
     pub section2_count: u32,

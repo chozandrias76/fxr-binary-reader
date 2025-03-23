@@ -1,5 +1,8 @@
 use crate::{AppState, file_entries};
-use crossterm::event::{self, Event, KeyCode};
+use crossterm::{
+    event::{self, Event, KeyCode},
+    style::Stylize,
+};
 use fxr_binary_reader::fxr::{
     Section4Container,
     fxr_parser_with_sections::{ParsedFXR, parse_fxr},
@@ -63,7 +66,7 @@ pub fn file_selection_loop<B: Backend>(
     terminal: &mut Terminal<B>,
     files: (Vec<PathBuf>, Vec<String>), // Use PathBuf instead of String
     mut selected: usize,                // Add selected index as a parameter
-) -> Result<PathBuf, anyhow::Error> {
+) -> Option<Result<PathBuf, anyhow::Error>> {
     let current_dir = env::current_dir().unwrap();
 
     loop {
@@ -97,7 +100,8 @@ pub fn file_selection_loop<B: Backend>(
                             return parent_pathbuf(terminal, &files, selected, &current_dir);
                         }
                         KeyCode::Esc => {
-                            return Err(anyhow::anyhow!("File selection canceled"));
+                            println!("{}", "Exiting file selection".green());
+                            return None;
                         }
                         _ => {}
                     }
@@ -112,7 +116,7 @@ fn parent_pathbuf<B: Backend>(
     files: &(Vec<PathBuf>, Vec<String>),
     selected: usize,
     current_dir: &PathBuf,
-) -> Result<PathBuf, anyhow::Error> {
+) -> Option<Result<PathBuf, anyhow::Error>> {
     if let Some(parent) = files
         .0
         .get(selected)
@@ -130,7 +134,7 @@ fn parent_pathbuf<B: Backend>(
             .unwrap_or(0);
         return file_selection_loop(terminal, dir_entries, new_selected);
     }
-    Ok(current_dir.to_path_buf())
+    Some(Ok(current_dir.to_path_buf()))
 }
 
 fn terminal_enter_file_or_dir<B: Backend>(
@@ -138,15 +142,15 @@ fn terminal_enter_file_or_dir<B: Backend>(
     files: &(Vec<PathBuf>, Vec<String>),
     selected: usize,
     current_dir: &PathBuf,
-) -> Result<PathBuf, anyhow::Error> {
+) -> Option<Result<PathBuf, anyhow::Error>> {
     let selected_route = files.0.get(selected).unwrap_or(current_dir);
     if selected_route.is_dir() {
         let dir_entries = file_entries(selected_route).unwrap();
         file_selection_loop(terminal, dir_entries, 0)
     } else if selected_route.is_file() {
-        return Ok(selected_route.clone());
+        return Some(Ok(selected_route.clone()));
     } else {
-        anyhow::bail!("Selected path is neither a file nor a directory");
+        return None;
     }
 }
 
@@ -200,9 +204,9 @@ fn get_class_name<'a, T>(instance: &T) -> &'a str {
 pub fn terminal_draw_loop(
     terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
     mut state: AppState,
-) -> Result<(), anyhow::Error> {
-    let (bin_path, file) = current_bin_path(&state.selected_file)?;
-    let mmap = unsafe { Mmap::map(&file)? };
+) -> Option<Result<(), anyhow::Error>> {
+    let (bin_path, file) = current_bin_path(&state.selected_file).unwrap();
+    let mmap = unsafe { Mmap::map(&file).unwrap() };
     let fxr_file_bytes = &mmap.as_bytes();
 
     // Parse the file
@@ -213,8 +217,8 @@ pub fn terminal_draw_loop(
 
     let mut last_key_time = Instant::now(); // Track the last key press time
 
+    // Render the UI
     loop {
-        // Render the UI
         terminal
             .draw(|f| {
                 let size = f.size();
@@ -234,28 +238,41 @@ pub fn terminal_draw_loop(
                     .highlight_style(HIGHLIGHT_STYLE);
                 f.render_stateful_widget(tree_widget, chunks[0], &mut state.tree_state);
             })
-            .map_err(anyhow::Error::new)?;
+            .map_err(anyhow::Error::new)
+            .unwrap();
 
         // Handle input events
-        if event::poll(Duration::from_millis(149)).map_err(anyhow::Error::new)? {
-            if let Event::Key(key) = event::read().map_err(anyhow::Error::new)? {
+        if event::poll(Duration::from_millis(149))
+            .map_err(anyhow::Error::new)
+            .unwrap()
+        {
+            if let Event::Key(key) = event::read().map_err(anyhow::Error::new).unwrap() {
                 if last_key_time.elapsed() >= Duration::from_millis(150) {
                     // Debounce threshold
                     last_key_time = Instant::now(); // Update the last key press time
                     match key.code {
-                        KeyCode::Char('q') => break, // Quit the loop
-                        KeyCode::Up => state.tree_state.key_up(&[root_tree.clone()]),
-                        KeyCode::Down => state.tree_state.key_down(&[root_tree.clone()]),
-                        KeyCode::Left => state.tree_state.key_left(),
-                        KeyCode::Right => state.tree_state.key_right(),
+                        KeyCode::Char('q') => {
+                            // Exit the loop and propagate None
+                            return None;
+                        }
+                        KeyCode::Up => {
+                            state.tree_state.key_up(&[root_tree.clone()]);
+                        }
+                        KeyCode::Down => {
+                            state.tree_state.key_down(&[root_tree.clone()]);
+                        }
+                        KeyCode::Left => {
+                            state.tree_state.key_left();
+                        }
+                        KeyCode::Right => {
+                            state.tree_state.key_right();
+                        }
                         _ => {}
                     }
                 }
             }
         }
     }
-
-    Ok(())
 }
 
 fn build<'a>(fxr_file_bytes: &&'a [u8], bin_path: PathBuf) -> TreeItem<'a> {

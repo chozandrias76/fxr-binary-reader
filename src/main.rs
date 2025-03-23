@@ -8,7 +8,7 @@ use crossterm::{
 use fxr_binary_reader::fxr::fxr_parser_with_sections::{ParsedFXR, parse_fxr};
 use ratatui::{Terminal, prelude::CrosstermBackend};
 use ratatui_tree_widget::{TreeItem, TreeState};
-use std::{env, fs, io::Read, os::windows::fs::MetadataExt, path::PathBuf, sync::Mutex};
+use std::{any::Any, env, fs, io::Read, os::windows::fs::MetadataExt, path::PathBuf, sync::Mutex};
 mod gui;
 use gui::{build_root_tree, file_selection_loop, terminal_draw_loop};
 use std::{fs::File, io};
@@ -106,23 +106,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
-    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        let current_dir = env::current_dir()?;
-        let files = file_entries(&current_dir)?;
-
-        let selected_file_index: usize = 0;
-        let selected_file = file_selection_loop(&mut terminal, files, selected_file_index)?;
-
-        // Load file data
-        let file_data = load_file_data(&selected_file)?;
-
-        // Initialize AppState with file data
-        let state = AppState::new(selected_file, &file_data)?;
-
-        terminal_draw_loop(&mut terminal, state)?;
-
-        Ok::<(), Box<dyn std::error::Error>>(())
-    }));
+    let result = terminal_main_wrapper(&mut terminal);
 
     disable_raw_mode()?;
     execute!(
@@ -145,6 +129,33 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+fn terminal_main_wrapper(
+    terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
+) -> Result<Result<(), anyhow::Error>, Box<(dyn Any + Send + 'static)>> {
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let current_dir = env::current_dir().unwrap();
+        let files = file_entries(&current_dir).unwrap();
+
+        let selected_file_index: usize = 0;
+        let selected_file = file_selection_loop(terminal, files, selected_file_index);
+        if selected_file.is_none() {
+            // User canceled the file selection
+            return Ok(());
+        }
+        let selected_file = selected_file.unwrap().unwrap();
+        // Load file data
+        let file_data = load_file_data(&selected_file).unwrap();
+
+        // Initialize AppState with file data
+        let state = AppState::new(selected_file, &file_data).unwrap();
+
+        if terminal_draw_loop(terminal, state).is_some() {
+            Ok(())
+        } else {
+            terminal_main_wrapper(terminal).unwrap()
+        }
+    }))
+}
 fn file_entries(
     current_dir: &std::path::PathBuf,
 ) -> Result<(Vec<PathBuf>, Vec<String>), Box<dyn std::error::Error>> {

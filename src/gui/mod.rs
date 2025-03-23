@@ -251,7 +251,7 @@ pub fn terminal_draw_loop(
                     // Debounce threshold
                     last_key_time = Instant::now(); // Update the last key press time
                     match key.code {
-                        KeyCode::Char('q') => {
+                        KeyCode::Char('q') | KeyCode::Esc => {
                             // Exit the loop and propagate None
                             return None;
                         }

@@ -119,7 +119,7 @@ impl Default for Header {
 }
 
 #[repr(C)]
-#[derive(Debug, FromBytes, IntoBytes, Immutable, KnownLayout)]
+#[derive(Debug, FromBytes, IntoBytes, Immutable, KnownLayout, Serialize, Deserialize)]
 pub struct Section4Container {
     unk00: u16,
     unk02: u8,
@@ -184,7 +184,7 @@ pub struct Section1Container {
 }
 
 #[repr(C)]
-#[derive(Debug, FromBytes, IntoBytes, Immutable, KnownLayout)]
+#[derive(Debug, FromBytes, IntoBytes, Immutable, KnownLayout, Serialize, Deserialize)]
 pub struct Section2Container {
     unk00: u32,
     pub section3_count: u32,

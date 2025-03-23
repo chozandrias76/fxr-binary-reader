@@ -168,7 +168,8 @@ fn render_files_list_state<B: Backend>(
     let items: Vec<ListItem> = files
         .0
         .iter()
-        .map(|file| ListItem::new(file.display().to_string())) // Display the path as a string
+        .enumerate()
+        .map(|(i, file)| ListItem::new(files.1[i].to_string())) // Display the path as a string
         .collect();
 
     let list = List::new(items)
@@ -198,13 +199,32 @@ pub fn terminal_draw_loop(
 
     // Build reflection trees for the header and section
     let header_tree: TreeItem = build_reflection_tree(&fxr.header.deref(), "Header");
-    let section_tree: TreeItem = build_reflection_tree(
-        &fxr.section1_tree.unwrap().section1.deref(),
-        "Section1Container",
+    let section1_tree = if let Some(section1_tree) = &fxr.section1_tree {
+        let mut section_tree: TreeItem =
+            build_reflection_tree(&section1_tree.section1.deref(), "Section1Container");
+        if let Some(section2) = &section1_tree.section2 {
+            let section2_tree: TreeItem =
+                build_reflection_tree(section2.deref(), "Section2Container");
+            section_tree.add_child(section2_tree);
+        }
+        Some(section_tree)
+    } else {
+        None
+    };
+    let section4_tree: TreeItem = build_reflection_tree(
+        &fxr.section4_tree.unwrap().container.deref(),
+        "Section4Container",
     );
 
+    let mut children = vec![];
+    children.push(header_tree);
+    if let Some(section_tree) = section1_tree {
+        children.push(section_tree);
+    }
+    children.push(section4_tree);
+
     // Combine the trees into a single root
-    let root_tree = TreeItem::new("FXR File", vec![header_tree, section_tree]);
+    let root_tree = TreeItem::new("FXR File", children);
 
     // Initialize TreeState
     state.tree_state.toggle(vec![0]); // Expand the root node

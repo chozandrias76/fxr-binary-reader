@@ -222,7 +222,7 @@ pub struct Section3Entry {
 }
 
 #[repr(C)]
-#[derive(Debug, FromBytes, IntoBytes, KnownLayout, Immutable, Serialize, Deserialize)]
+#[derive(Debug, FromBytes, IntoBytes, KnownLayout, Immutable, Serialize, Deserialize, Default)]
 pub struct Section7Container {
     unk00: u32,
     unk04: u32,

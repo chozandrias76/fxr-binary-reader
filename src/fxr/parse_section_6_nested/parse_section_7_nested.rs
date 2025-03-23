@@ -16,6 +16,168 @@ pub struct ParsedSection7Nested<'a> {
     pub section8: Vec<ParsedSection8<'a>>,
 }
 
+/// Parses Section7Container and its nested sections
+/// Returns a ParsedSection7Nested struct containing parsed data
+/// # Arguments
+/// * `data` - The byte slice containing the data to parse
+/// * `container` - The Section7Container to parse
+/// * `label` - A label for logging purposes
+/// # Returns
+/// * `Result<ParsedSection7Nested<'a>, anyhow::Error>` - A result containing the parsed data or an error
+/// # Example
+/// ```
+///  use fxr_binary_reader::{
+///      fxr, fxr::parse_section_6_nested::parse_section_7_nested::parse_section7_nested,
+///  };
+///  let fixture_path = "fixtures/f000302420.fxr";
+///  let data = std::fs::read(fixture_path).unwrap();
+///  let mut container = fxr::Section7Container::default();
+///  container.section11_count = 248;
+///  container.section11_offset = 0x1530;
+///  container.section8_offset = 0x1510;
+///  let label = "TestLabel";
+///  let parsed_data = parse_section7_nested(&data, &container, label).unwrap();
+///  assert_eq!(
+///      parsed_data.section11.len(),
+///      1,
+///      "Section11 should not be empty"
+///  );
+///  let section11_entry = &parsed_data.section11[0];
+///  assert_eq!(
+///      section11_entry.len(),
+///      248,
+///      "Section11 entry length should be 248"
+///  );
+///  for (i, entry) in section11_entry.iter().enumerate() {
+///      if vec![0, 186, 203, 204, 205, 206, 224, 174, 175, 176, 230].contains(&i) {
+///          assert_eq!(
+///              entry.data,
+///              0x3F800000,
+///              "{}",
+///              format!(
+///                  "[{}] {}",
+///                  i, "Section11 entry data should match expected value"
+///              )
+///          );
+///      } else if {
+///          let valid_indices: std::collections::HashSet<_> = (3..=5)
+///              .chain(58..=122)
+///              .chain(134..=135)
+///              .chain(146..=146)
+///              .chain(148..=148)
+///              .chain(159..=160)
+///              .chain(171..=171)
+///              .chain(177..=179)
+///              .chain(185..=185)
+///              .chain(198..=198)
+///              .chain(227..=227)
+///              .chain(238..=238)
+///              .collect();
+///          valid_indices.contains(&i)
+///      } {
+///          assert_eq!(
+///              entry.data,
+///              0x00000001,
+///              "{}",
+///              format!(
+///                  "[{}]{}",
+///                  i, "Section11 entry data should match expected value"
+///              )
+///          );
+///      } else if i == 25 {
+///          assert_eq!(
+///              entry.data,
+///              0xFFFFFFFF,
+///              "{}",
+///              format!(
+///                  "[{}]{}",
+///                  i, "Section11 entry data should match expected value"
+///              )
+///          );
+///      } else if vec![137, 147, 162, 172].contains(&i) {
+///          assert_eq!(
+///              entry.data,
+///              0xBD088889,
+///              "{}",
+///              format!(
+///                  "[{}]{}",
+///                  i, "Section11 entry data should match expected value"
+///              )
+///          );
+///      } else if i == 173 {
+///          assert_eq!(
+///              entry.data,
+///              0x00000002,
+///              "{}",
+///              format!(
+///                  "[{}]{}",
+///                  i, "Section11 entry data should match expected value"
+///              )
+///          );
+///      } else if vec![181, 182, 234, 235].contains(&i) {
+///          assert_eq!(
+///              entry.data,
+///              0xFFFFFFFE,
+///              "{}",
+///              format!(
+///                  "[{}]{}",
+///                  i, "Section11 entry data should match expected value"
+///              )
+///          );
+///      } else if vec![201].contains(&i) {
+///          assert_eq!(
+///              entry.data,
+///              0x00000008,
+///              "{}",
+///              format!(
+///                  "[{}]{}",
+///                  i, "Section11 entry data should match expected value"
+///              )
+///          );
+///      } else if vec![237].contains(&i) {
+///          assert_eq!(
+///              entry.data,
+///              0x47AA0A00,
+///              "{}",
+///              format!(
+///                  "[{}]{}",
+///                  i, "Section11 entry data should match expected value"
+///              )
+///          );
+///      } else if vec![233].contains(&i) {
+///          assert_eq!(
+///              entry.data,
+///              0x3F000000,
+///              "{}",
+///              format!(
+///                  "[{}]{}",
+///                  i, "Section11 entry data should match expected value"
+///              )
+///          );
+///      } else if vec![213, 214, 215, 216, 217, 218].contains(&i) {
+///          assert_eq!(
+///              entry.data,
+///              0xBF800000,
+///              "{}",
+///              format!(
+///                  "[{}]{}",
+///                  i, "Section11 entry data should match expected value"
+///              )
+///          );
+///      } else {
+///          assert_eq!(
+///              entry.data,
+///              0x00000000,
+///              "{}",
+///              format!(
+///                  "[{}]{}",
+///                  i, "Section11 entry data should match expected value"
+///              )
+///          );
+///      }
+///  }
+///  assert_eq!(parsed_data.section8.len(), 0, "Section8 should be empty");
+///```
 pub fn parse_section7_nested<'a>(
     data: &'a [u8],
     container: &crate::fxr::Section7Container,

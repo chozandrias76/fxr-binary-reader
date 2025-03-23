@@ -168,7 +168,7 @@ fn file_entries(
     let file_data: Vec<String> = fs::read_dir(current_dir)?
         .filter_map(|entry| entry.ok())
         .filter(|entry| {
-            entry.file_type().unwrap().is_dir()
+            (entry.file_type().unwrap().is_dir() && !entry.file_name().to_string_lossy().starts_with("."))
                 || entry
                     .file_name()
                     .into_string()

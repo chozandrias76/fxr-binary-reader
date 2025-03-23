@@ -13,23 +13,16 @@ mod gui;
 use gui::{build_root_tree, file_selection_loop, terminal_draw_loop};
 use std::{fs::File, io};
 
-enum FocusedSection {
-    Nodes,
-    Fields,
-}
 struct AppState<'a> {
-    // flattened: Vec<(usize, Rc<RefCell<StructNode>>)>,
     fields: Vec<(String, String)>,
     selected_file: PathBuf,
     fxr: Option<ParsedFXR<'a>>,
     selected_node: usize,
     node_scroll_offset: usize,
     field_scroll_offset: usize,
-    focused_section: FocusedSection,
-    dragging: Option<FocusedSection>, // Track which section's scrollbar is being dragged
-    resizing: bool,                   // Track if the user is resizing the panes
-    node_pane_width: u16,             // Width of the "Nodes" pane in percentage
-    tree_state: TreeState,            // Placeholder for tree state management
+    resizing: bool,                      // Track if the user is resizing the panes
+    node_pane_width: u16,                // Width of the "Nodes" pane in percentage
+    tree_state: TreeState,               // Placeholder for tree state management
     pub tree_root: Option<TreeItem<'a>>, // Placeholder for tree state management
 }
 
@@ -43,8 +36,6 @@ impl<'a> Default for AppState<'a> {
             node_scroll_offset: 0,
             field_scroll_offset: 0,
             fxr: None,
-            focused_section: FocusedSection::Fields,
-            dragging: None,
             resizing: false,
             node_pane_width: 70, // Default to 70% width for the "Nodes" pane
             tree_state: TreeState::default(),

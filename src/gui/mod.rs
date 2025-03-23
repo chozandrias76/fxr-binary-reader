@@ -60,79 +60,41 @@ pub fn file_selection_loop<B: Backend>(
     terminal: &mut Terminal<B>,
     files: (Vec<PathBuf>, Vec<String>), // Use PathBuf instead of String
     mut selected: usize,                // Add selected index as a parameter
-) -> Result<PathBuf, Box<dyn std::error::Error>> {
-    let current_dir = env::current_dir()?;
+) -> Result<PathBuf, anyhow::Error> {
+    let current_dir = env::current_dir().unwrap();
 
     loop {
         let mut list_state = ListState::default();
         list_state.select(Some(selected));
-        terminal.draw(|f| {
-            let size = f.size();
-            let items: Vec<ListItem> = files
-                .0
-                .iter()
-                .map(|file| ListItem::new(file.display().to_string())) // Display the path as a string
-                .collect();
+        terminal
+            .draw(|frame| {
+                render_files_list_state(&files, list_state, frame);
+            })
+            .unwrap();
 
-            let list = List::new(items)
-                .block(
-                    Block::default()
-                        .title("Select a File")
-                        .borders(Borders::ALL),
-                )
-                .highlight_style(
-                    HIGHLIGHT_STYLE, // Set background color
-                )
-                .highlight_symbol(">> ");
-            f.render_stateful_widget(list, size, &mut list_state);
-        })?;
-
-        if crossterm::event::poll(Duration::from_millis(50))? {
-            if let Event::Key(key) = event::read()? {
+        if crossterm::event::poll(Duration::from_millis(50)).unwrap() {
+            if let Event::Key(key) = event::read().unwrap() {
                 if key.kind == crossterm::event::KeyEventKind::Press {
                     match key.code {
                         KeyCode::Up => {
-                            if !files.0.is_empty() {
-                                selected = selected.saturating_sub(1);
-                            }
+                            increment_selected(&files, &mut selected);
                         }
                         KeyCode::Down => {
-                            if !files.0.is_empty() {
-                                selected = selected.saturating_add(1).min(files.0.len() - 1);
-                            }
+                            decrement_selected(&files, &mut selected);
                         }
                         KeyCode::Right | KeyCode::Enter => {
-                            let selected_route = files.0.get(selected).unwrap_or(&current_dir);
-                            if selected_route.is_dir() {
-                                let dir_entries = file_entries(selected_route)?; // Pass PathBuf directly
-                                return file_selection_loop(terminal, dir_entries, 0);
-                            }
-                            if selected_route.is_file() {
-                                return Ok(selected_route.clone());
-                            }
+                            return terminal_enter_file_or_dir(
+                                terminal,
+                                &files,
+                                selected,
+                                &current_dir,
+                            );
                         }
                         KeyCode::Left => {
-                            if let Some(parent) = files
-                                .0
-                                .get(selected)
-                                .unwrap_or(&current_dir)
-                                .parent()
-                                .unwrap()
-                                .parent()
-                            {
-                                let dir_entries = file_entries(&parent.to_path_buf())?;
-                                let current_dir_name = files.0[selected].file_name();
-                                let new_selected = dir_entries
-                                    .0
-                                    .iter()
-                                    .position(|entry| entry.file_name() == current_dir_name)
-                                    .unwrap_or(0);
-                                // panic!("Parent directory selected: {:?}", parent);
-                                return file_selection_loop(terminal, dir_entries, new_selected);
-                            }
+                            return parent_pathbuf(terminal, &files, selected, &current_dir);
                         }
                         KeyCode::Esc => {
-                            return Err("File selection canceled".into());
+                            return Err(anyhow::anyhow!("File selection canceled"));
                         }
                         _ => {}
                     }
@@ -140,6 +102,86 @@ pub fn file_selection_loop<B: Backend>(
             }
         }
     }
+}
+
+fn parent_pathbuf<B: Backend>(
+    terminal: &mut Terminal<B>,
+    files: &(Vec<PathBuf>, Vec<String>),
+    selected: usize,
+    current_dir: &PathBuf,
+) -> Result<PathBuf, anyhow::Error> {
+    if let Some(parent) = files
+        .0
+        .get(selected)
+        .unwrap_or(current_dir)
+        .parent()
+        .unwrap()
+        .parent()
+    {
+        let dir_entries = file_entries(&parent.to_path_buf()).unwrap();
+        let current_dir_name = files.0[selected].file_name();
+        let new_selected = dir_entries
+            .0
+            .iter()
+            .position(|entry| entry.file_name() == current_dir_name)
+            .unwrap_or(0);
+        return file_selection_loop(terminal, dir_entries, new_selected);
+    }
+    Ok(current_dir.to_path_buf())
+}
+
+fn terminal_enter_file_or_dir<B: Backend>(
+    terminal: &mut Terminal<B>,
+    files: &(Vec<PathBuf>, Vec<String>),
+    selected: usize,
+    current_dir: &PathBuf,
+) -> Result<PathBuf, anyhow::Error> {
+    let selected_route = files.0.get(selected).unwrap_or(current_dir);
+    if selected_route.is_dir() {
+        let dir_entries = file_entries(selected_route).unwrap();
+        file_selection_loop(terminal, dir_entries, 0)
+    } else if selected_route.is_file() {
+        return Ok(selected_route.clone());
+    } else {
+        anyhow::bail!("Selected path is neither a file nor a directory");
+    }
+}
+
+fn decrement_selected(files: &(Vec<PathBuf>, Vec<String>), selected: &mut usize) {
+    if !files.0.is_empty() {
+        *selected = (*selected + 1).min(files.0.len() - 1);
+    }
+}
+
+fn increment_selected(files: &(Vec<PathBuf>, Vec<String>), selected: &mut usize) {
+    if !files.0.is_empty() {
+        *selected = selected.saturating_sub(1);
+    }
+}
+
+fn render_files_list_state<B: Backend>(
+    files: &(Vec<PathBuf>, Vec<String>),
+    mut list_state: ListState,
+    f: &mut ratatui::Frame<'_, B>,
+) {
+    let size = f.size();
+    let items: Vec<ListItem> = files
+        .0
+        .iter()
+        .map(|file| ListItem::new(file.display().to_string())) // Display the path as a string
+        .collect();
+
+    let list = List::new(items)
+        .block(
+            Block::default()
+                .title("Select a File")
+                .borders(Borders::ALL),
+        )
+        .highlight_style(
+            HIGHLIGHT_STYLE, // Set background color
+        )
+        .highlight_symbol(">> ");
+    f.render_stateful_widget(list, size, &mut list_state);
 }
 
 pub fn terminal_draw_loop(

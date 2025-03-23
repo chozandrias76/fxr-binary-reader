@@ -28,9 +28,9 @@ pub struct ParsedFXR<'a> {
     pub header: Ref<&'a [u8], Header>,
     pub section1_tree: Option<ParsedSections<'a>>,
     pub section4_tree: Option<ParsedSection4Tree<'a>>,
-    pub section12_entries: Ref<&'a [u8], [Section12Entry]>,
-    pub section13_entries: Ref<&'a [u8], [Section13Entry]>,
-    pub section14_entries: Ref<&'a [u8], [Section14Entry]>,
+    pub section12_entries: Option<Ref<&'a [u8], [Section12Entry]>>,
+    pub section13_entries: Option<Ref<&'a [u8], [Section13Entry]>>,
+    pub section14_entries: Option<Ref<&'a [u8], [Section14Entry]>>,
 }
 
 /// Parses the FXR file and prints the header and sections information.
@@ -77,26 +77,38 @@ pub fn parse_fxr<'a>(data: &'a [u8]) -> anyhow::Result<ParsedFXR<'a>> {
         None
     };
 
-    let section12_entries = parse_named_u32_entries::<Section12Entry>(
-        data,
-        header_ref.section12_offset,
-        header_ref.section12_count,
-        "Section12",
-    )?;
+    let section12_entries = if header_ref.section12_count > 0 {
+        Some(parse_named_u32_entries::<Section12Entry>(
+            data,
+            header_ref.section12_offset,
+            header_ref.section12_count,
+            "Section12",
+        )?)
+    } else {
+        None
+    };
 
-    let section13_entries = parse_named_u32_entries::<Section13Entry>(
-        data,
-        header_ref.section13_offset,
-        header_ref.section13_count,
-        "Section13",
-    )?;
+    let section13_entries = if header_ref.section13_count > 0 {
+        Some(parse_named_u32_entries::<Section13Entry>(
+            data,
+            header_ref.section13_offset,
+            header_ref.section13_count,
+            "Section13",
+        )?)
+    } else {
+        None
+    };
 
-    let section14_entries = parse_named_u32_entries::<Section14Entry>(
-        data,
-        header_ref.section14_offset,
-        header_ref.section14_count,
-        "Section14",
-    )?;
+    let section14_entries = if header_ref.section14_count > 0 {
+        Some(parse_named_u32_entries::<Section14Entry>(
+            data,
+            header_ref.section14_offset,
+            header_ref.section14_count,
+            "Section14",
+        )?)
+    } else {
+        None
+    };
 
     Ok(ParsedFXR {
         header: header_ref,

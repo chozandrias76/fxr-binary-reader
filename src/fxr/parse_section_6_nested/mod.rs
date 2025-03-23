@@ -1,10 +1,11 @@
 use crate::fxr::{
     Section7Container, Section10Container, Section11Entry,
-    parse_section_7_nested::parse_section7_nested,
     util::{ParseError, parse_section_slice, parse_struct},
 };
 use log::debug;
 use zerocopy::Ref;
+mod parse_section_7_nested;
+use parse_section_7_nested::parse_section7_nested;
 
 #[derive(Debug)]
 pub struct ParsedSection6<'a> {

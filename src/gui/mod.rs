@@ -1,6 +1,7 @@
 use crate::{AppState, file_entries};
 use crossterm::event::{self, Event, KeyCode};
 use fxr_binary_reader::fxr::{
+    Section4Container,
     fxr_parser_with_sections::{ParsedFXR, parse_fxr},
     view::view::build_reflection_tree,
 };
@@ -262,15 +263,15 @@ fn build<'a>(data: &&'a [u8], bin_path: PathBuf) -> TreeItem<'a> {
         .map_err(|e| anyhow::anyhow!("Failed to parse file '{}': {}", bin_path.display(), e))
         .unwrap();
 
-    // Build reflection trees for the header and section
+    // Build reflection trees for the header and sections
     let header = fxr.header.deref();
     let header_tree: TreeItem = build_reflection_tree(header, get_class_name(header));
-    let mut children = vec![];
+    let mut children = vec![header_tree];
+
     let section1_tree = build_section_1_tree(&fxr);
+    let section4_tree = build_section_4_tree(&fxr);
 
-    let section4_tree = build_section_4_tree(fxr);
-
-    children.push(header_tree);
+    // Add parsed sections to the tree
     if let Some(section_tree) = section1_tree {
         children.push(section_tree);
     }
@@ -278,15 +279,48 @@ fn build<'a>(data: &&'a [u8], bin_path: PathBuf) -> TreeItem<'a> {
         children.push(section_tree);
     }
 
-    // Combine the trees into a single root
+    // Add Section12, Section13, and Section14 entries to the tree
+    if let Some(section12_entries) = &fxr.section12_entries {
+        let mut section12_tree = TreeItem::new("Section12", vec![]);
+        section12_entries.deref().iter().for_each(|entry| {
+            section12_tree.add_child(build_reflection_tree(entry, get_class_name(entry)));
+        });
+        children.push(section12_tree);
+    }
 
+    if let Some(section13_entries) = &fxr.section13_entries.as_deref() {
+        let mut section13_tree = TreeItem::new("Section13", vec![]);
+        section13_entries.iter().for_each(|entry| {
+            section13_tree.add_child(build_reflection_tree(entry, get_class_name(entry)));
+        });
+        children.push(section13_tree);
+    }
+
+    if let Some(section14_entries) = &fxr.section14_entries.as_deref() {
+        let mut section14_tree = TreeItem::new("Section14", vec![]);
+        section14_entries.iter().for_each(|entry| {
+            section14_tree.add_child(build_reflection_tree(entry, get_class_name(entry)));
+        });
+        children.push(section14_tree);
+    }
+
+    // Combine the trees into a single root
     TreeItem::new("FXR File", children)
 }
 
-fn build_section_4_tree<'a>(fxr: ParsedFXR<'a>) -> Option<TreeItem<'a>> {
+fn build_section_4_tree<'a>(fxr: &ParsedFXR<'a>) -> Option<TreeItem<'a>> {
     if let Some(section4_tree) = &fxr.section4_tree {
-        let section4 = section4_tree.container.deref();
+        let section4: &Section4Container = section4_tree.container.deref();
         let mut section_tree: TreeItem = build_reflection_tree(section4, get_class_name(section4));
+
+        if let Some(section4_entries) = &section4_tree.section4_entries {
+            section4_entries.deref().iter().for_each(|section4_entry| {
+                section_tree.add_child(build_reflection_tree(
+                    section4_entry,
+                    get_class_name(section4_entry),
+                ));
+            });
+        }
 
         if let Some(section5_entries) = &section4_tree.section5_entries {
             section5_entries.deref().iter().for_each(|section5_entry| {

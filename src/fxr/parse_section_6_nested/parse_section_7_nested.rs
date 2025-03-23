@@ -29,7 +29,7 @@ pub struct ParsedSection7Nested<'a> {
 /// ```rust
 /// fn main() -> anyhow::Result<()> {
 ///     use fxr_binary_reader::fxr::util::parse_struct;
-///     use fxr_binary_reader::fxr::{Section7Container, parse_section_7_nested};
+///     use fxr_binary_reader::fxr::Section7Container;
 ///     let data: &mut [u8] = &mut [0x0; 1000];
 ///     data[0x0..0x4].copy_from_slice(&[0x01, 0x00, 0x00, 0x00]);
 ///     data[0x4..0x8].copy_from_slice(&[0x01, 0x00, 0x00, 0x00]);

@@ -70,19 +70,6 @@ impl<'a> AppState<'a> {
     }
 }
 
-// fn flatten_tree_mut(
-//     node: &mut StructNode,
-//     depth: usize,
-//     out: &mut Vec<(usize, Rc<RefCell<StructNode>>)>,
-// ) {
-//     out.push((depth, Rc::new(RefCell::new(node.clone()))));
-//     if node.is_expanded {
-//         for child in &mut node.children {
-//             flatten_tree_mut(child, depth + 1, out);
-//         }
-//     }
-// }
-
 fn setup() -> Result<(), Box<dyn std::error::Error>> {
     let log_file = File::create("./fxr_binary_reader.log")?;
     let subscriber = tracing_subscriber::fmt()

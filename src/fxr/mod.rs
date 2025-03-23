@@ -3,7 +3,6 @@ use zerocopy_derive::{FromBytes, Immutable, IntoBytes, KnownLayout};
 
 pub mod fxr_parser_with_sections;
 pub mod parse_section_1_tree;
-pub mod parse_section_3_tree;
 pub mod parse_section_4_tree;
 pub mod parse_section_6_nested;
 pub mod parse_section_7_nested;
@@ -138,21 +137,21 @@ pub struct Section4Container {
 }
 
 #[repr(C)]
-#[derive(Debug, FromBytes, IntoBytes, Immutable, KnownLayout)]
+#[derive(Debug, FromBytes, IntoBytes, Immutable, KnownLayout, Serialize, Deserialize)]
 pub struct Section4Entry {
     // Placeholder structure
     unk00: u32,
 }
 
 #[repr(C)]
-#[derive(Debug, FromBytes, IntoBytes, Immutable, KnownLayout)]
+#[derive(Debug, FromBytes, IntoBytes, Immutable, KnownLayout, Serialize, Deserialize)]
 pub struct Section5Entry {
     // Placeholder structure
     unk00: u32,
 }
 
 #[repr(C)]
-#[derive(Debug, FromBytes, IntoBytes, KnownLayout, Immutable)]
+#[derive(Debug, FromBytes, IntoBytes, KnownLayout, Immutable, Serialize, Deserialize)]
 pub struct Section6Entry {
     unk00: u16,
     unk02: u8,
@@ -224,7 +223,7 @@ pub struct Section3Entry {
 }
 
 #[repr(C)]
-#[derive(Debug, FromBytes, IntoBytes, KnownLayout, Immutable)]
+#[derive(Debug, FromBytes, IntoBytes, KnownLayout, Immutable, Serialize, Deserialize)]
 pub struct Section7Container {
     unk00: u32,
     unk04: u32,
@@ -239,7 +238,7 @@ pub struct Section7Container {
 }
 
 #[repr(C)]
-#[derive(Debug, FromBytes, IntoBytes, KnownLayout, Immutable)]
+#[derive(Debug, FromBytes, IntoBytes, KnownLayout, Immutable, Serialize, Deserialize)]
 pub struct Section8Container {
     unk00: u8,
     unk01: u8,
@@ -255,7 +254,7 @@ pub struct Section8Container {
 }
 
 #[repr(C)]
-#[derive(Debug, FromBytes, IntoBytes, KnownLayout, Immutable)]
+#[derive(Debug, FromBytes, IntoBytes, KnownLayout, Immutable, Serialize, Deserialize)]
 pub struct Section9Container {
     unk00: u32,
     unk04: u32,
@@ -266,7 +265,7 @@ pub struct Section9Container {
 }
 
 #[repr(C)]
-#[derive(Debug, FromBytes, IntoBytes, KnownLayout, Immutable)]
+#[derive(Debug, FromBytes, IntoBytes, KnownLayout, Immutable, Serialize, Deserialize)]
 pub struct Section10Container {
     pub section11_offset: u32,
     unk04: u32,
@@ -275,31 +274,31 @@ pub struct Section10Container {
 }
 
 #[repr(C)]
-#[derive(Debug, FromBytes, IntoBytes, KnownLayout, Immutable)]
+#[derive(Debug, FromBytes, IntoBytes, KnownLayout, Immutable, Serialize, Deserialize)]
 pub struct Section12Entry {
     data: u32, // Assuming each entry is 4 bytes
 }
 
 #[repr(C)]
-#[derive(Debug, FromBytes, IntoBytes, KnownLayout, Immutable)]
+#[derive(Debug, FromBytes, IntoBytes, KnownLayout, Immutable, Serialize, Deserialize)]
 pub struct Section13Entry {
     data: u32,
 }
 
 #[repr(C)]
-#[derive(Debug, FromBytes, IntoBytes, KnownLayout, Immutable)]
+#[derive(Debug, FromBytes, IntoBytes, KnownLayout, Immutable, Serialize, Deserialize)]
 pub struct Section11Entry {
     pub data: u32,
 }
 
 #[repr(C)]
-#[derive(Debug, FromBytes, IntoBytes, KnownLayout, Immutable)]
+#[derive(Debug, FromBytes, IntoBytes, KnownLayout, Immutable, Serialize, Deserialize)]
 pub struct Section14Entry {
     data: u32,
 }
 
 #[repr(C)]
-#[derive(Debug, FromBytes, IntoBytes, KnownLayout, Immutable)]
+#[derive(Debug, FromBytes, IntoBytes, KnownLayout, Immutable, Serialize, Deserialize)]
 pub struct Section7Entry {
     unk00: u32,
     unk04: u32,
@@ -314,7 +313,7 @@ pub struct Section7Entry {
 }
 
 #[repr(C)]
-#[derive(Debug, FromBytes, IntoBytes, KnownLayout, Immutable)]
+#[derive(Debug, FromBytes, IntoBytes, KnownLayout, Immutable, Serialize, Deserialize)]
 pub struct Section10Entry {
     pub section11_offset: u32,
     unk04: u32,
@@ -323,7 +322,7 @@ pub struct Section10Entry {
 }
 
 #[repr(C)]
-#[derive(Debug, FromBytes, IntoBytes, KnownLayout, Immutable)]
+#[derive(Debug, FromBytes, IntoBytes, KnownLayout, Immutable, Serialize, Deserialize)]
 pub struct Section8Entry {
     unk00: u8,
     unk01: u8,
@@ -339,7 +338,7 @@ pub struct Section8Entry {
 }
 
 #[repr(C)]
-#[derive(Debug, FromBytes, IntoBytes, KnownLayout, Immutable)]
+#[derive(Debug, FromBytes, IntoBytes, KnownLayout, Immutable, Serialize, Deserialize)]
 pub struct Section9Entry {
     unk00: u32,
     unk04: u32,

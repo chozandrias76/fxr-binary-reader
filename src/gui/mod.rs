@@ -230,17 +230,42 @@ pub fn terminal_draw_loop(
     } else {
         None
     };
-    let section4_tree: TreeItem = build_reflection_tree(
-        &fxr.section4_tree.unwrap().container.deref(),
-        "Section4Container",
-    );
-
     let mut children = vec![];
+
+    let section4_tree = if let Some(section4_tree) = &fxr.section4_tree {
+        let section4 = section4_tree.container.deref();
+        let mut section_tree: TreeItem = build_reflection_tree(section4, "Section4Container");
+
+        if let Some(section5_entries) = &section4_tree.section5_entries {
+            section5_entries.deref().iter().for_each(|section5_entry| {
+                section_tree.add_child(build_reflection_tree(
+                    section5_entry,
+                    get_class_name(section5_entry),
+                ));
+            });
+        }
+
+        if let Some(section6_entries) = &section4_tree.section6_entries {
+            section6_entries.deref().iter().for_each(|section6_entry| {
+                section_tree.add_child(build_reflection_tree(
+                    section6_entry,
+                    get_class_name(section6_entry),
+                ));
+            });
+        }
+
+        Some(section_tree)
+    } else {
+        None
+    };
+
     children.push(header_tree);
     if let Some(section_tree) = section1_tree {
         children.push(section_tree);
     }
-    children.push(section4_tree);
+    if let Some(section_tree) = section4_tree {
+        children.push(section_tree);
+    }
 
     // Combine the trees into a single root
     let root_tree = TreeItem::new("FXR File", children);

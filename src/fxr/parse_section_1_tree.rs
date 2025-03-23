@@ -121,8 +121,8 @@ pub fn parse_section3_tree(
 ///     error!("Failed to parse Section1 tree: {}", e);
 /// }
 /// ```
-pub fn parse_section1_tree(data: &[u8], offset: u32) -> anyhow::Result<ParsedSections> {
-    let section1 = parse_struct::<Section1Container>(data, offset, "Section1")?;
+pub fn parse_section1_tree(fxr_file_bytes: &[u8], offset: u32) -> anyhow::Result<ParsedSections> {
+    let section1 = parse_struct::<Section1Container>(fxr_file_bytes, offset, "Section1")?;
     debug!("Section1 @ 0x{:08X}: {:#?}", offset, section1);
 
     let mut section2 = None;
@@ -131,7 +131,7 @@ pub fn parse_section1_tree(data: &[u8], offset: u32) -> anyhow::Result<ParsedSec
     if section1.section2_count > 0 {
         let section2_offset = section1.section2_offset;
         section2 = Some(parse_struct::<Section2Container>(
-            data,
+            fxr_file_bytes,
             section2_offset,
             "Section2",
         )?);
@@ -140,7 +140,7 @@ pub fn parse_section1_tree(data: &[u8], offset: u32) -> anyhow::Result<ParsedSec
         if let Some(ref sec2) = section2 {
             if sec2.section3_count > 0 {
                 section3 = Some(parse_section3_tree(
-                    data,
+                    fxr_file_bytes,
                     sec2.section3_offset,
                     sec2.section3_count,
                 )?);

@@ -4,7 +4,7 @@ use crate::fxr::{
 };
 use log::debug;
 use zerocopy::Ref;
-mod parse_section_7_nested;
+pub mod parse_section_7_nested;
 use parse_section_7_nested::parse_section7_nested;
 
 #[derive(Debug)]

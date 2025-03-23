@@ -79,13 +79,16 @@ use zerocopy::Ref;
 ///     Ok(())
 /// }
 /// ```
-pub fn parse_section4_tree(data: &[u8], offset: u32) -> anyhow::Result<ParsedSection4Tree> {
-    let container = parse_struct::<Section4Container>(data, offset, "Section4Container")?;
+pub fn parse_section4_tree(
+    fxr_file_bytes: &[u8],
+    offset: u32,
+) -> anyhow::Result<ParsedSection4Tree> {
+    let container = parse_struct::<Section4Container>(fxr_file_bytes, offset, "Section4Container")?;
     debug!("Section4Container @ 0x{:08X}: {:#?}", offset, container);
 
     let section4_entries = if container.section4_count > 0 {
         let entries = parse_section_slice::<Section4Entry>(
-            data,
+            fxr_file_bytes,
             container.section4_offset,
             container.section4_count,
             &format!("Section4Entry[] @ 0x{:08X}", container.section4_offset),
@@ -97,7 +100,7 @@ pub fn parse_section4_tree(data: &[u8], offset: u32) -> anyhow::Result<ParsedSec
 
     let section5_entries = if container.section5_count > 0 {
         let entries = parse_section_slice::<Section5Entry>(
-            data,
+            fxr_file_bytes,
             container.section5_offset,
             container.section5_count,
             &format!("Section5Entry[] @ 0x{:08X}", container.section5_offset),
@@ -109,15 +112,15 @@ pub fn parse_section4_tree(data: &[u8], offset: u32) -> anyhow::Result<ParsedSec
 
     let section6_entries = if container.section6_count > 0 {
         let entries = parse_section_slice::<Section6Entry>(
-            data,
+            fxr_file_bytes,
             container.section6_offset,
             container.section6_count,
             &format!("Section6Entry[] @ 0x{:08X}", container.section6_offset),
         )?;
         for (i, entry) in entries.iter().enumerate() {
-            let ptr = entry as *const _ as usize - data.as_ptr() as usize;
+            let ptr = entry as *const _ as usize - fxr_file_bytes.as_ptr() as usize;
             debug!("Section6[{}] @ 0x{:08X}: {:#?}", i, ptr, entry);
-            parse_section6_nested(data, entry, i)?;
+            parse_section6_nested(fxr_file_bytes, entry, i)?;
         }
         Some(entries)
     } else {

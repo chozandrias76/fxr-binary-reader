@@ -79,7 +79,7 @@ pub enum ParseError {
 /// }
 /// ```
 pub fn parse_named_u32_entries<'a, T>(
-    data: &'a [u8],
+    fxr_file_bytes: &'a [u8],
     offset: u32,
     count: u32,
     label: &str,
@@ -91,7 +91,7 @@ where
     //     return Err(anyhow::anyhow!("{label} is empty. No entries to parse."));
     // }
 
-    let entries = parse_section_slice::<T>(data, offset, count, label)
+    let entries = parse_section_slice::<T>(fxr_file_bytes, offset, count, label)
         .map_err(|e| anyhow::anyhow!("Failed to parse {label} entries: {e}"))?;
 
     debug!("{label} entries ({}):", entries.len());
@@ -362,7 +362,7 @@ pub fn parse_struct<'a, T: FromBytes + KnownLayout + Immutable>(
 /// }
 /// ```
 pub fn parse_section_slice<'a, T: FromBytes + KnownLayout + Immutable>(
-    data: &'a [u8],
+    fxr_file_bytes: &'a [u8],
     offset: u32,
     count: u32,
     label: &str,
@@ -382,21 +382,21 @@ pub fn parse_section_slice<'a, T: FromBytes + KnownLayout + Immutable>(
             count: count as usize,
         })?;
 
-    if end > data.len() {
+    if end > fxr_file_bytes.len() {
         return Err(ParseError::OutOfBounds {
             offset: start,
             size: total_size,
-            data_len: data.len(),
+            data_len: fxr_file_bytes.len(),
         });
     }
 
-    Ref::<_, [T]>::from_bytes_with_elems(&data[start..end], count as usize).map_err(|_| {
-        ParseError::ParseFailed {
+    Ref::<_, [T]>::from_bytes_with_elems(&fxr_file_bytes[start..end], count as usize).map_err(
+        |_| ParseError::ParseFailed {
             label: label.to_string(),
             start,
             end,
             entry_size,
             count: count as usize,
-        }
-    })
+        },
+    )
 }

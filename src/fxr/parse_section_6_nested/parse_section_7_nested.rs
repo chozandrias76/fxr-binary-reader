@@ -17,38 +17,12 @@ pub struct ParsedSection7Nested<'a> {
 }
 
 /// Parses Section7Container and its nested sections
-/// # Arguments
-/// * `data` - The byte slice containing the data to parse
-/// * `container` - The Section7Container containing offsets and counts for nested sections
-/// * `label` - A label for logging purposes
-/// # Returns
-/// * `Result` - Ok if parsing is successful, Err if there is an error
-/// This function handles parsing nested sections within Section7, including Section11, Section8, and Section9.
-/// It prints the parsed data to the console.
-/// # Example
-/// ```rust
-/// fn main() -> anyhow::Result<()> {
-///     use fxr_binary_reader::fxr::util::parse_struct;
-///     use fxr_binary_reader::fxr::Section7Container;
-///     let data: &mut [u8] = &mut [0x0; 1000];
-///     data[0x0..0x4].copy_from_slice(&[0x01, 0x00, 0x00, 0x00]);
-///     data[0x4..0x8].copy_from_slice(&[0x01, 0x00, 0x00, 0x00]);
-///     data[0x8..0xc].copy_from_slice(&[0x01, 0x00, 0x00, 0x00]);
-///     data[0xc..0x10].copy_from_slice(&[0x01, 0x00, 0x00, 0x00]);
-///     data[0x10..0x14].copy_from_slice(&[0x01, 0x00, 0x00, 0x00]);
-///     data[0x14..0x18].copy_from_slice(&[0x01, 0x00, 0x00, 0x00]);
-///     let data2: &mut [u8] = &mut [0x0; 1000];
-///     let section7_offset = 0x20;
-///     let container = parse_struct::<Section7Container>(data2, section7_offset, "")?;
-///     Ok(())
-/// }
-///```
 pub fn parse_section7_nested<'a>(
     data: &'a [u8],
     container: &crate::fxr::Section7Container,
     label: &str,
 ) -> anyhow::Result<ParsedSection7Nested<'a>> {
-    debug!("{}: {:#?}", label, container);
+    debug!("{}: Parsing Section7Container: {:#?}", label, container);
 
     let mut parsed_section7 = ParsedSection7Nested {
         section11: Vec::new(),
@@ -57,6 +31,10 @@ pub fn parse_section7_nested<'a>(
 
     // Section11[] from Section7Container
     if container.section11_count > 0 {
+        debug!(
+            "{}: Parsing Section11[] @ offset 0x{:08X}, count {}",
+            label, container.section11_offset, container.section11_count
+        );
         let entries: Ref<&[u8], [Section11Entry]> = parse_section_slice::<Section11Entry>(
             data,
             container.section11_offset,
@@ -71,6 +49,10 @@ pub fn parse_section7_nested<'a>(
 
     // Section8Entry[]
     if container.section8_count > 0 {
+        debug!(
+            "{}: Parsing Section8[] @ offset 0x{:08X}, count {}",
+            label, container.section8_offset, container.section8_count
+        );
         let entries: Ref<&[u8], [Section8Entry]> = parse_section_slice::<Section8Entry>(
             data,
             container.section8_offset,
@@ -86,6 +68,10 @@ pub fn parse_section7_nested<'a>(
 
             // Section11[] inside Section8Entry
             if entry.section11_count > 0 {
+                debug!(
+                    "{}: Parsing Section8[{}]::Section11[] @ offset 0x{:08X}, count {}",
+                    label, i, entry.section11_offset, entry.section11_count
+                );
                 let s11: Ref<&[u8], [Section11Entry]> = parse_section_slice::<Section11Entry>(
                     data,
                     entry.section11_offset,
@@ -100,6 +86,10 @@ pub fn parse_section7_nested<'a>(
 
             // Section9Entry[]
             if entry.section9_count > 0 {
+                debug!(
+                    "{}: Parsing Section8[{}]::Section9[] @ offset 0x{:08X}, count {}",
+                    label, i, entry.section9_offset, entry.section9_count
+                );
                 let s9: Ref<&[u8], [Section9Entry]> = parse_section_slice::<Section9Entry>(
                     data,
                     entry.section9_offset,
@@ -117,6 +107,10 @@ pub fn parse_section7_nested<'a>(
 
                     // Optional nested Section11[]
                     if s9_entry.section11_count > 0 {
+                        debug!(
+                            "{}: Parsing Section8[{}]::Section9[{}]::Section11[] @ offset 0x{:08X}, count {}",
+                            label, i, j, s9_entry.section11_offset, s9_entry.section11_count
+                        );
                         let s11: Ref<&[u8], [Section11Entry]> =
                             parse_section_slice::<Section11Entry>(
                                 data,

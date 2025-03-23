@@ -55,10 +55,10 @@ pub struct ParsedFXR<'a> {
 ///     Ok(())
 /// }
 /// ```
-pub fn parse_fxr<'a>(data: &'a [u8]) -> anyhow::Result<ParsedFXR<'a>> {
+pub fn parse_fxr<'a>(fxr_file_bytes: &'a [u8]) -> anyhow::Result<ParsedFXR<'a>> {
     let header_size = std::mem::size_of::<Header>();
 
-    let header_ref = Ref::<_, Header>::from_bytes(&data[..header_size])
+    let header_ref = Ref::<_, Header>::from_bytes(&fxr_file_bytes[..header_size])
         .map_err(|_| anyhow::anyhow!("Failed to read header"))?;
 
     assert_eq!(&header_ref.magic, b"FXR\0");
@@ -66,20 +66,26 @@ pub fn parse_fxr<'a>(data: &'a [u8]) -> anyhow::Result<ParsedFXR<'a>> {
     debug!("Header @ 0x00000000: {:#?}", header_ref);
 
     let section1_tree = if header_ref.section1_count > 0 {
-        Some(parse_section1_tree(data, header_ref.section1_offset)?)
+        Some(parse_section1_tree(
+            fxr_file_bytes,
+            header_ref.section1_offset,
+        )?)
     } else {
         None
     };
 
     let section4_tree = if header_ref.section4_count > 0 {
-        Some(parse_section4_tree(data, header_ref.section4_offset)?)
+        Some(parse_section4_tree(
+            fxr_file_bytes,
+            header_ref.section4_offset,
+        )?)
     } else {
         None
     };
 
     let section12_entries = if header_ref.section12_count > 0 {
         Some(parse_named_u32_entries::<Section12Entry>(
-            data,
+            fxr_file_bytes,
             header_ref.section12_offset,
             header_ref.section12_count,
             "Section12",
@@ -90,7 +96,7 @@ pub fn parse_fxr<'a>(data: &'a [u8]) -> anyhow::Result<ParsedFXR<'a>> {
 
     let section13_entries = if header_ref.section13_count > 0 {
         Some(parse_named_u32_entries::<Section13Entry>(
-            data,
+            fxr_file_bytes,
             header_ref.section13_offset,
             header_ref.section13_count,
             "Section13",
@@ -101,7 +107,7 @@ pub fn parse_fxr<'a>(data: &'a [u8]) -> anyhow::Result<ParsedFXR<'a>> {
 
     let section14_entries = if header_ref.section14_count > 0 {
         Some(parse_named_u32_entries::<Section14Entry>(
-            data,
+            fxr_file_bytes,
             header_ref.section14_offset,
             header_ref.section14_count,
             "Section14",

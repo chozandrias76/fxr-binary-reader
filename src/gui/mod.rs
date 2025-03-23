@@ -203,10 +203,10 @@ pub fn terminal_draw_loop(
 ) -> Result<(), anyhow::Error> {
     let (bin_path, file) = current_bin_path(&state.selected_file)?;
     let mmap = unsafe { Mmap::map(&file)? };
-    let data = &mmap.as_bytes();
+    let fxr_file_bytes = &mmap.as_bytes();
 
     // Parse the file
-    let root_tree = build(data, bin_path);
+    let root_tree = build(fxr_file_bytes, bin_path);
 
     // Initialize TreeState
     state.tree_state.toggle(vec![0]); // Expand the root node
@@ -258,8 +258,8 @@ pub fn terminal_draw_loop(
     Ok(())
 }
 
-fn build<'a>(data: &&'a [u8], bin_path: PathBuf) -> TreeItem<'a> {
-    let fxr = parse_fxr(data)
+fn build<'a>(fxr_file_bytes: &&'a [u8], bin_path: PathBuf) -> TreeItem<'a> {
+    let fxr = parse_fxr(fxr_file_bytes)
         .map_err(|e| anyhow::anyhow!("Failed to parse file '{}': {}", bin_path.display(), e))
         .unwrap();
 

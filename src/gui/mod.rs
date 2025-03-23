@@ -170,7 +170,7 @@ fn render_files_list_state<B: Backend>(
         .0
         .iter()
         .enumerate()
-        .map(|(i, file)| ListItem::new(files.1[i].to_string())) // Display the path as a string
+        .map(|(i, _file)| ListItem::new(files.1[i].to_string())) // Display the path as a string
         .collect();
 
     let list = List::new(items)
@@ -204,71 +204,7 @@ pub fn terminal_draw_loop(
     let data = &mmap.as_bytes();
 
     // Parse the file
-    let fxr = parse_fxr(data)
-        .map_err(|e| anyhow::anyhow!("Failed to parse file '{}': {}", bin_path.display(), e))
-        .unwrap();
-
-    // Build reflection trees for the header and section
-    let header = fxr.header.deref();
-    let header_tree: TreeItem = build_reflection_tree(header, get_class_name(header));
-    let section1_tree = if let Some(section1_tree) = &fxr.section1_tree {
-        let section1 = section1_tree.section1.deref();
-        let mut section_tree: TreeItem = build_reflection_tree(section1, get_class_name(section1));
-        if let Some(section2) = &section1_tree.section2.as_deref() {
-            let section2_tree: TreeItem = build_reflection_tree(section2, get_class_name(section2));
-            section_tree.add_child(section2_tree);
-        }
-        if let Some(section3) = &section1_tree.section3 {
-            section3.deref().iter().for_each(|section_3_entry| {
-                section_tree.add_child(build_reflection_tree(
-                    section_3_entry,
-                    get_class_name(section_3_entry),
-                ));
-            });
-        }
-        Some(section_tree)
-    } else {
-        None
-    };
-    let mut children = vec![];
-
-    let section4_tree = if let Some(section4_tree) = &fxr.section4_tree {
-        let section4 = section4_tree.container.deref();
-        let mut section_tree: TreeItem = build_reflection_tree(section4, "Section4Container");
-
-        if let Some(section5_entries) = &section4_tree.section5_entries {
-            section5_entries.deref().iter().for_each(|section5_entry| {
-                section_tree.add_child(build_reflection_tree(
-                    section5_entry,
-                    get_class_name(section5_entry),
-                ));
-            });
-        }
-
-        if let Some(section6_entries) = &section4_tree.section6_entries {
-            section6_entries.deref().iter().for_each(|section6_entry| {
-                section_tree.add_child(build_reflection_tree(
-                    section6_entry,
-                    get_class_name(section6_entry),
-                ));
-            });
-        }
-
-        Some(section_tree)
-    } else {
-        None
-    };
-
-    children.push(header_tree);
-    if let Some(section_tree) = section1_tree {
-        children.push(section_tree);
-    }
-    if let Some(section_tree) = section4_tree {
-        children.push(section_tree);
-    }
-
-    // Combine the trees into a single root
-    let root_tree = TreeItem::new("FXR File", children);
+    let root_tree = build(data, bin_path);
 
     // Initialize TreeState
     state.tree_state.toggle(vec![0]); // Expand the root node
@@ -318,6 +254,87 @@ pub fn terminal_draw_loop(
     }
 
     Ok(())
+}
+
+fn build<'a>(data: &&'a [u8], bin_path: PathBuf) -> TreeItem<'a> {
+    let fxr = parse_fxr(data)
+        .map_err(|e| anyhow::anyhow!("Failed to parse file '{}': {}", bin_path.display(), e))
+        .unwrap();
+
+    // Build reflection trees for the header and section
+    let header = fxr.header.deref();
+    let header_tree: TreeItem = build_reflection_tree(header, get_class_name(header));
+    let mut children = vec![];
+    let section1_tree = build_section_1_tree(&fxr);
+
+    let section4_tree = build_section_4_tree(fxr);
+
+    children.push(header_tree);
+    if let Some(section_tree) = section1_tree {
+        children.push(section_tree);
+    }
+    if let Some(section_tree) = section4_tree {
+        children.push(section_tree);
+    }
+
+    // Combine the trees into a single root
+
+    TreeItem::new("FXR File", children)
+}
+
+fn build_section_4_tree<'a>(
+    fxr: fxr_binary_reader::fxr::fxr_parser_with_sections::ParsedFXR<'a>,
+) -> Option<TreeItem<'a>> {
+    if let Some(section4_tree) = &fxr.section4_tree {
+        let section4 = section4_tree.container.deref();
+        let mut section_tree: TreeItem = build_reflection_tree(section4, "Section4Container");
+
+        if let Some(section5_entries) = &section4_tree.section5_entries {
+            section5_entries.deref().iter().for_each(|section5_entry| {
+                section_tree.add_child(build_reflection_tree(
+                    section5_entry,
+                    get_class_name(section5_entry),
+                ));
+            });
+        }
+
+        if let Some(section6_entries) = &section4_tree.section6_entries {
+            section6_entries.deref().iter().for_each(|section6_entry| {
+                section_tree.add_child(build_reflection_tree(
+                    section6_entry,
+                    get_class_name(section6_entry),
+                ));
+            });
+        }
+
+        Some(section_tree)
+    } else {
+        None
+    }
+}
+
+fn build_section_1_tree<'a>(
+    fxr: &fxr_binary_reader::fxr::fxr_parser_with_sections::ParsedFXR<'a>,
+) -> Option<TreeItem<'a>> {
+    if let Some(section1_tree) = &fxr.section1_tree {
+        let section1 = section1_tree.section1.deref();
+        let mut section_tree: TreeItem = build_reflection_tree(section1, get_class_name(section1));
+        if let Some(section2) = &section1_tree.section2.as_deref() {
+            let section2_tree: TreeItem = build_reflection_tree(section2, get_class_name(section2));
+            section_tree.add_child(section2_tree);
+        }
+        if let Some(section3) = &section1_tree.section3 {
+            section3.deref().iter().for_each(|section_3_entry| {
+                section_tree.add_child(build_reflection_tree(
+                    section_3_entry,
+                    get_class_name(section_3_entry),
+                ));
+            });
+        }
+        Some(section_tree)
+    } else {
+        None
+    }
 }
 
 pub fn current_bin_path(selected_file: &PathBuf) -> Result<(PathBuf, File), anyhow::Error> {

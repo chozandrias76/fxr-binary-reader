@@ -24,9 +24,17 @@ pub mod view {
         tracer.trace_value(&mut samples, sample).unwrap();
         let registry: BTreeMap<String, ContainerFormat> = tracer.registry().unwrap();
 
-        let struct_desc: &ContainerFormat = registry
-            .get(name)
-            .unwrap_or_else(|| panic!("Type not found in registry: {}", name));
+        let struct_desc: &ContainerFormat = registry.get(name).unwrap_or_else(|| {
+            panic!(
+                "Type not found in registry: {}. Contents: {:#?}",
+                name,
+                registry
+                    .keys()
+                    .map(String::as_str)
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            )
+        });
 
         let mut children_items = vec![];
 

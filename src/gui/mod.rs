@@ -12,6 +12,7 @@ use ratatui::{
 };
 use ratatui_tree_widget::{Tree, TreeItem};
 use std::{
+    any::type_name,
     env,
     fs::File,
     io,
@@ -185,6 +186,15 @@ fn render_files_list_state<B: Backend>(
     f.render_stateful_widget(list, size, &mut list_state);
 }
 
+fn get_type_name<T>(_: &T) -> &'static str {
+    type_name::<T>()
+}
+
+fn get_class_name<'a, T>(instance: &T) -> &'a str {
+    let full_type_name = get_type_name(instance);
+    full_type_name.split("::").last().unwrap_or(full_type_name)
+}
+
 pub fn terminal_draw_loop(
     terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
     mut state: AppState,
@@ -195,17 +205,26 @@ pub fn terminal_draw_loop(
 
     // Parse the file
     let fxr = parse_fxr(data)
-        .map_err(|e| anyhow::anyhow!("Failed to parse file '{}': {}", bin_path.display(), e))?;
+        .map_err(|e| anyhow::anyhow!("Failed to parse file '{}': {}", bin_path.display(), e))
+        .unwrap();
 
     // Build reflection trees for the header and section
-    let header_tree: TreeItem = build_reflection_tree(&fxr.header.deref(), "Header");
+    let header = fxr.header.deref();
+    let header_tree: TreeItem = build_reflection_tree(header, get_class_name(header));
     let section1_tree = if let Some(section1_tree) = &fxr.section1_tree {
-        let mut section_tree: TreeItem =
-            build_reflection_tree(&section1_tree.section1.deref(), "Section1Container");
-        if let Some(section2) = &section1_tree.section2 {
-            let section2_tree: TreeItem =
-                build_reflection_tree(section2.deref(), "Section2Container");
+        let section1 = section1_tree.section1.deref();
+        let mut section_tree: TreeItem = build_reflection_tree(section1, get_class_name(section1));
+        if let Some(section2) = &section1_tree.section2.as_deref() {
+            let section2_tree: TreeItem = build_reflection_tree(section2, get_class_name(section2));
             section_tree.add_child(section2_tree);
+        }
+        if let Some(section3) = &section1_tree.section3 {
+            section3.deref().iter().for_each(|section_3_entry| {
+                section_tree.add_child(build_reflection_tree(
+                    section_3_entry,
+                    get_class_name(section_3_entry),
+                ));
+            });
         }
         Some(section_tree)
     } else {

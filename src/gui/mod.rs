@@ -1,7 +1,8 @@
 use crate::{AppState, file_entries};
 use crossterm::event::{self, Event, KeyCode};
 use fxr_binary_reader::fxr::{
-    fxr_parser_with_sections::parse_fxr, view::view::build_reflection_tree,
+    fxr_parser_with_sections::{ParsedFXR, parse_fxr},
+    view::view::build_reflection_tree,
 };
 use memmap2::Mmap;
 use ratatui::{
@@ -282,12 +283,10 @@ fn build<'a>(data: &&'a [u8], bin_path: PathBuf) -> TreeItem<'a> {
     TreeItem::new("FXR File", children)
 }
 
-fn build_section_4_tree<'a>(
-    fxr: fxr_binary_reader::fxr::fxr_parser_with_sections::ParsedFXR<'a>,
-) -> Option<TreeItem<'a>> {
+fn build_section_4_tree<'a>(fxr: ParsedFXR<'a>) -> Option<TreeItem<'a>> {
     if let Some(section4_tree) = &fxr.section4_tree {
         let section4 = section4_tree.container.deref();
-        let mut section_tree: TreeItem = build_reflection_tree(section4, "Section4Container");
+        let mut section_tree: TreeItem = build_reflection_tree(section4, get_class_name(section4));
 
         if let Some(section5_entries) = &section4_tree.section5_entries {
             section5_entries.deref().iter().for_each(|section5_entry| {

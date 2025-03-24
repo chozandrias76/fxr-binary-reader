@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use validator::{Validate, ValidationError};
 use zerocopy_derive::{FromBytes, Immutable, IntoBytes, KnownLayout};
 
 pub mod fxr_parser_with_sections;
@@ -27,17 +28,35 @@ impl U32Field for crate::fxr::Section14Entry {
         self.data
     }
 }
+fn validate_fxr_type_magic_bytes(magic: &[u8; 4]) -> Result<(), ValidationError> {
+    let mut err = ValidationError::new("Header Magic");
+    if magic != b"FXR\0" {
+        err.message = Some(
+            format!(
+                "Invalid magic value. Found: {}",
+                String::from_utf8_lossy(magic)
+            )
+            .into(),
+        );
+        Err(err)
+    } else {
+        Ok(())
+    }
+}
 
 #[repr(C)]
-#[derive(Debug, FromBytes, IntoBytes, Immutable, KnownLayout, Serialize)]
+#[derive(Debug, FromBytes, IntoBytes, Immutable, KnownLayout, Serialize, Validate)]
 pub struct Header {
+    #[validate(custom(function = "validate_fxr_type_magic_bytes"))]
     pub magic: [u8; 4],
     unk04: u16,
+    #[validate(range(min = 4, max = 5))]
     pub version: u16,
+    #[validate(range(min = 1, max = 1))]
     unk08: u32,
     pub ffx_id: u32,
-
     pub section1_offset: u32,
+    #[validate(range(min = 1, max = 1))]
     pub section1_count: u32,
     pub section2_offset: u32,
     pub section2_count: u32,
@@ -74,14 +93,14 @@ pub struct Header {
 
 impl Default for Header {
     fn default() -> Self {
-        Self {
+        let res = Self {
             magic: [b'F', b'X', b'R', 0],
             unk04: 0,
             version: 1,
             unk08: 0,
             ffx_id: 0,
             section1_offset: 0,
-            section1_count: 0,
+            section1_count: 1,
             section2_offset: 0,
             section2_count: 0,
             section3_offset: 0,
@@ -112,7 +131,9 @@ impl Default for Header {
             section14_count: 0,
             unk88: 0,
             unk8c: 0,
-        }
+        };
+        res.validate().unwrap();
+        res
     }
 }
 
@@ -173,11 +194,13 @@ pub struct Section6Entry {
 }
 
 #[repr(C)]
-#[derive(Debug, FromBytes, IntoBytes, Immutable, KnownLayout, Serialize, Deserialize)]
+#[derive(Debug, FromBytes, IntoBytes, Immutable, KnownLayout, Serialize, Deserialize, Validate)]
 pub struct Section1Container {
+    #[validate(range(min = 0, max = 0))]
     unk00: u32,
     pub section2_count: u32,
     pub section2_offset: u32,
+    #[validate(range(min = 0, max = 0))]
     unk0c: u32,
 }
 

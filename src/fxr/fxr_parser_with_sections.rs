@@ -7,6 +7,7 @@ use crate::fxr::{
     util::parse_named_u32_entries,
 };
 use log::debug;
+use validator::Validate;
 use zerocopy::Ref;
 
 pub struct ParsedSection7Nested<'a> {
@@ -60,6 +61,7 @@ pub fn parse_fxr<'a>(fxr_file_bytes: &'a [u8]) -> anyhow::Result<ParsedFXR<'a>> 
 
     let header_ref = Ref::<_, Header>::from_bytes(&fxr_file_bytes[..header_size])
         .map_err(|_| anyhow::anyhow!("Failed to read header"))?;
+    header_ref.validate().unwrap();
 
     assert_eq!(&header_ref.magic, b"FXR\0");
     assert_eq!(header_ref.version, 5);

@@ -37,87 +37,36 @@ pub struct ParsedSection7<'a> {
 /// # Example
 ///```rust
 /// fn main() -> anyhow::Result<()> {
+///   use tracing::debug;
 ///   use fxr_binary_reader::fxr::Section6Entry;
+///   use fxr_binary_reader::fxr::Section11Entry;
 ///   use fxr_binary_reader::fxr::parse_section_6_nested::parse_section6_nested;
 ///   use fxr_binary_reader::fxr::util::parse_section_slice;
-///   let data: &[u8] = &[
-///     // Section6Entry (example values)
-///     0x01, 0x00, // unk00 (u16)
-///     0x02, // unk02 (u8)
-///     0x03, // unk03 (u8)
-///     0x10, 0x00, 0x00, 0x00, // unk04 (u32)
-///     0x01, 0x00, 0x00, 0x00, // section11_count1 (u32)
-///     0x01, 0x00, 0x00, 0x00, // section10_count (u32)
-///     0x01, 0x00, 0x00, 0x00, // section7_count1 (u32)
-///     0x00, 0x00, 0x00, 0x00, // section11_count2 (u32)
-///     0x00, 0x00, 0x00, 0x00, // unk18 (u32)
-///     0x01, 0x00, 0x00, 0x00, // section7_count2 (u32)
-///     0x20, 0x00, 0x00, 0x00, // section11_offset (u32)
-///     0x00, 0x00, 0x00, 0x00, // unk24 (u32)
-///     0x30, 0x00, 0x00, 0x00, // section10_offset (u32)
-///     0x00, 0x00, 0x00, 0x00, // unk2c (u32)
-///     0x40, 0x00, 0x00, 0x00, // section7_offset (u32)
-///     0x00, 0x00, 0x00, 0x00, // unk34 (u32)
-///     0x00, 0x00, 0x00, 0x00, // unk38 (u32)
-///     0x00, 0x00, 0x00, 0x00, // unk3c (u32)
-///     // Section11Entry (example values)
-///     0x00, 0x00, 0x00, 0x00, // unk00 (u32)
-///     // Section10Container (example values)
-///     0x01, 0x00, 0x00, 0x00, // unk04 (u32)
-///     0x01, 0x00, 0x00, 0x00, // section11_offset (u32)
-///     // Section7Container (example values)
-///     0x00, 0x00, 0x00, 0x00, // unk0c (u32)
-///     // Additional padding to ensure sufficient buffer size
-///     100, 0x00, 0x00, 0x00, // section11_offset (u32)
-///     0x00, 0x00, 0x00, 0x00, // Padding
-///     108, 0x00, 0x00, 0x00, // section8_offset (u32)
-///     0x00, 0x00, 0x00, 0x00, // Padding
-///     1, 0x00, 0x00, 0x00, // section8_count (u32)
-///     0x00, 0x00, 0x00, 0x00, // Padding
-///     0x00, 0x00, 0x00, 0x00, // Padding
-///     0x00, 0x00, 0x00, 0x00, // Padding
-///     0x00, 0x00, 0x00, 0x00, // Padding
-///     0x00, 0x00, 0x00, 0x00, // Padding
-///     0x00, 0x00, 0x00, 0x00, // Padding
-///     0x00, 0x00, 0x00, 0x00, // Padding
-///     0x00, 0x00, 0x00, 0x00, // Padding
-///     0x00, 0x00, 0x00, 0x00, // Padding
-///     0x00, 0x00, 0x00, 0x00, // Padding
-///     0x00, 0x00, 0x00, 0x00, // Padding
-///     0x00, 0x00, 0x00, 0x00, // Padding
-///   ];
-///   let section6_offset = 0x00;
-///   let section6_count = 1;
+///   let fixture_path = "fixtures/f000302420.fxr";
+///   let data = std::fs::read(fixture_path).unwrap();
+///   let section6_offset = 0x1E0;
+///   let section6_count = 0x24;
 ///   let index = 0;
+///   let p = 1;
 ///   let entry = &parse_section_slice::<Section6Entry>(
-///       data,
+///       &data,
 ///       section6_offset,
 ///       section6_count,
 ///       &format!("Section6Entry[] @ 0x{:08X}", section6_offset),
-///   )?[0];
-///   let parsed = parse_section6_nested(data, entry, index)?;
+///   )?[p];
+///   assert_eq!(entry.section11_count1, 56, "Section6Entry[{}]::section11_count1 is 0", p);
+///   let parsed = parse_section6_nested(&data, entry, index).unwrap();
+///
+///   let section11 = parsed.section11;
+///   assert!(section11.is_some());
+///   let section11 = section11.unwrap();
+///   assert_eq!(section11.len(), 56, "Section11 length mismatch");
+///  for (i, entry) in section11.iter().enumerate() {
+///     let ptr = entry as *const _ as usize - data.as_ptr() as usize;
+///     assert_eq!(ptr, 0x1458 + (0xE0*p) + (4*i), "{}", format!("Section11 entry offset mismatch at index {}", i));
+///  }
 ///
 ///   // Assert on key values
-///   assert!(parsed.section11.is_some());
-///   let section11 = parsed.section11.unwrap();
-///   let section11 = section11.get(0).unwrap();
-///   assert_eq!(section11.data, u32::from_ne_bytes([0x20, 0x00, 0x00, 0x00]));
-///
-///   assert!(parsed.section10.is_some());
-///   let section10 = parsed.section10.unwrap();
-///   let section10 = section10.container;
-///   assert_eq!(section10.section11_offset, 0x40);
-///   assert_eq!(section10.section11_count, 0x00);
-///
-///   assert!(parsed.section7.is_some());
-///   let section7 = parsed.section7.unwrap();
-///   let section7 = section7.container;
-///   assert_eq!(section7.section11_count, 0x01, "section11_count should be 1");
-///   assert_eq!(section7.section11_offset, 0x64, "section11_offset should be 100");
-///
-///   assert_eq!(section7.section8_count, 0x01, "section8_count should be 1");
-///   assert_eq!(section7.section8_offset, 0x6C, "section8_offset should be 108");
-///
 ///   Ok(())
 /// }
 /// ```

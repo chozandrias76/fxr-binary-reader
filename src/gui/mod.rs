@@ -36,39 +36,6 @@ const HIGHLIGHT_STYLE: Style = Style {
     sub_modifier: Modifier::ITALIC,
 };
 
-pub fn build_root_tree(state: &AppState) -> TreeItem<'static> {
-    // Example: Build the root tree dynamically
-    let header_tree = build_reflection_tree(
-        &state
-            .fxr
-            .as_ref()
-            .expect("Could not get FXR")
-            .header
-            .deref(),
-        "Header",
-    );
-    let section_tree = build_reflection_tree(
-        &state
-            .fxr
-            .as_ref()
-            .expect("Could not get FXR")
-            .section1_tree
-            .as_ref()
-            .expect("Could not get Section 1 Tree")
-            .section1
-            .deref(),
-        "Section1Container",
-    );
-
-    TreeItem::new(
-        "FXR File",
-        vec![header_tree, section_tree]
-            .into_iter()
-            .filter_map(Result::ok) // Filter out any errors
-            .collect::<Vec<TreeItem<'_>>>(),
-    )
-}
-
 pub fn file_selection_loop<B: Backend>(
     terminal: &mut Terminal<B>,
     files: (Vec<PathBuf>, Vec<String>), // Use PathBuf instead of String
@@ -212,12 +179,12 @@ pub fn terminal_draw_loop(
     terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
     mut state: AppState,
 ) -> Option<Result<(), Box<dyn Error>>> {
-    let (bin_path, file) = current_bin_path(&state.selected_file).unwrap();
+    let (_bin_path, file) = current_bin_path(&state.selected_file).unwrap();
     let mmap = unsafe { Mmap::map(&file).unwrap() };
     let fxr_file_bytes = &mmap.as_bytes();
 
     // Parse the file
-    let root_tree = build(fxr_file_bytes, bin_path).unwrap();
+    let root_tree = build(fxr_file_bytes).unwrap();
     let root_tree_clone = root_tree.clone();
 
     // Initialize TreeState
@@ -278,7 +245,7 @@ pub fn terminal_draw_loop(
     }
 }
 
-fn build<'a>(fxr_file_bytes: &&'a [u8], bin_path: PathBuf) -> Result<TreeItem<'a>, Box<dyn Error>> {
+fn build<'a>(fxr_file_bytes: &&'a [u8]) -> Result<TreeItem<'a>, Box<dyn Error>> {
     let fxr = parse_fxr(fxr_file_bytes).unwrap();
 
     // Build reflection trees for the header and sections

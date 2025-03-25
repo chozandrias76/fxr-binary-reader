@@ -33,6 +33,7 @@ pub struct ParsedSection7<'a> {
 /// * `index` - The index of the Section6 entry being parsed
 /// # Returns
 /// * `Result` - Ok if parsing is successful, Err if there is an error
+///
 /// This function handles parsing nested sections within Section6, including Section11, Section10, and Section7.
 /// It prints the parsed data to the console.
 /// # Example

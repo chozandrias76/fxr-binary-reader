@@ -7,42 +7,28 @@ use crossterm::{
 };
 use fxr_binary_reader::fxr::fxr_parser_with_sections::{ParsedFXR, parse_fxr};
 use ratatui::{Terminal, prelude::CrosstermBackend};
-use ratatui_tree_widget::{TreeItem, TreeState};
+use ratatui_tree_widget::TreeState;
 use std::{
     any::Any, env, error::Error, fs, io::Read, os::windows::fs::MetadataExt, path::PathBuf,
     sync::Mutex,
 };
 mod gui;
-use gui::{build_root_tree, file_selection_loop, terminal_draw_loop};
+use gui::{file_selection_loop, terminal_draw_loop};
 use std::{fs::File, io};
 
 struct AppState<'a> {
-    fields: Vec<(String, String)>,
     selected_file: PathBuf,
     fxr: Option<ParsedFXR<'a>>,
-    selected_node: usize,
-    node_scroll_offset: usize,
-    field_scroll_offset: usize,
-    resizing: bool,                      // Track if the user is resizing the panes
-    node_pane_width: u16,                // Width of the "Nodes" pane in percentage
-    tree_state: TreeState,               // Placeholder for tree state management
-    pub tree_root: Option<TreeItem<'a>>, // Placeholder for tree state management
+    tree_state: TreeState,
 }
 
 impl<'a> Default for AppState<'a> {
     fn default() -> Self {
         Self {
             selected_file: PathBuf::new(),
-            selected_node: 0,
             // flattened: Vec::new(),
-            fields: Vec::new(),
-            node_scroll_offset: 0,
-            field_scroll_offset: 0,
             fxr: None,
-            resizing: false,
-            node_pane_width: 70, // Default to 70% width for the "Nodes" pane
             tree_state: TreeState::default(),
-            tree_root: None,
         }
     }
 }
@@ -53,17 +39,15 @@ fn load_file_data(file_path: &PathBuf) -> Result<Vec<u8>, Box<dyn Error>> {
     Ok(file_data)
 }
 impl<'a> AppState<'a> {
-    fn new(selected_file: PathBuf, file_data: &'a Vec<u8>) -> Result<Self, Box<dyn Error>> {
+    fn new(selected_file: PathBuf, file_data: &'a [u8]) -> Result<Self, Box<dyn Error>> {
         let mut ret = Self::default();
 
         // Parse the file
         let fxr: ParsedFXR<'a> = parse_fxr(file_data)?;
         ret.fxr = Some(fxr);
-        let root_tree = build_root_tree(&ret);
 
         Ok(Self {
             selected_file,
-            tree_root: Some(root_tree),
             ..ret
         })
     }

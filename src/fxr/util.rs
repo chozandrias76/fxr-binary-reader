@@ -6,7 +6,7 @@ use zerocopy::{FromBytes, Immutable, KnownLayout, Ref};
 pub enum ParseError {
     #[error("Data buffer is too small: expected at least {expected} bytes, got {actual} bytes")]
     BufferTooSmall { expected: usize, actual: usize },
-    #[error("Offset {offset} plus size {size} exceeds data length {data_len}")]
+    #[error("Struct given offset of {offset} plus size {size} exceeds data length {data_len}")]
     OutOfBounds {
         offset: usize,
         size: usize,
@@ -127,6 +127,7 @@ where
 /// # Errors
 /// - Returns an error if the calculated end of the struct exceeds the length of the data buffer.
 /// - Returns an error if the struct cannot be parsed into the specified type `T`.
+///
 /// Example usage of `parse_struct`:
 /// ```rust
 /// use zerocopy::{FromBytes, KnownLayout, Ref};

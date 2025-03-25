@@ -73,7 +73,7 @@ pub fn build_reflection_tree<T: serde::Serialize + ?Sized>(
 
             // Optional: resolve sub-structs from registry
             if let Format::TypeName(child_type_name) = field_type {
-                if registry.get(child_type_name).is_some() {
+                if let Some(_child_type) = registry.get(child_type_name) {
                     let child_tree = build_reflection_tree(&(), child_type_name);
                     field_item =
                         TreeItem::new(format!("{}: {}", field_name, formatted_value), Vec::new());

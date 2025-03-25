@@ -4,6 +4,7 @@ use crate::fxr::{
     util::{parse_section_slice, parse_struct},
 };
 use log::debug;
+use validator::Validate;
 use zerocopy::Ref;
 
 /// Parses Section3 entries from the provided binary data.
@@ -21,7 +22,7 @@ use zerocopy::Ref;
 /// # Returns
 ///
 /// * `Ok(Ref<&[u8], [Section3Entry]>)` - A reference to the parsed Section3 entries if successful.
-/// * `Err(anyhow::Error)` - An error if parsing fails.
+/// * `Err(Box<dyn Error>)` - An error if parsing fails.
 ///
 /// # Errors
 ///
@@ -58,7 +59,7 @@ pub fn parse_section3_tree(
     data: &[u8],
     offset: u32,
     count: u32,
-) -> anyhow::Result<Ref<&[u8], [Section3Entry]>> {
+) -> Result<Ref<&[u8], [Section3Entry]>, Box<dyn std::error::Error>> {
     let entries = parse_section_slice::<Section3Entry>(data, offset, count, "Section3")?;
     for (i, entry) in entries.iter().enumerate() {
         let ptr = entry as *const _ as usize - data.as_ptr() as usize;
@@ -82,8 +83,8 @@ pub fn parse_section3_tree(
 ///
 /// # Returns
 ///
-/// * `anyhow::Result<()>` - Returns `Ok(())` if parsing is successful, or an
-///   error wrapped in `anyhow::Error` if any part of the parsing fails.
+/// * `Result<(), Box<dyn std::error::Error>>` - Returns `Ok(())` if parsing is successful, or an
+///   error wrapped in `Box<dyn Error>` if any part of the parsing fails.
 ///
 /// # Errors
 ///
@@ -121,7 +122,10 @@ pub fn parse_section3_tree(
 ///     error!("Failed to parse Section1 tree: {}", e);
 /// }
 /// ```
-pub fn parse_section1_tree(fxr_file_bytes: &[u8], offset: u32) -> anyhow::Result<ParsedSections> {
+pub fn parse_section1_tree(
+    fxr_file_bytes: &[u8],
+    offset: u32,
+) -> Result<ParsedSections, Box<dyn std::error::Error>> {
     let section1 = parse_struct::<Section1Container>(fxr_file_bytes, offset, "Section1")?;
     debug!("Section1 @ 0x{:08X}: {:#?}", offset, section1);
 
@@ -160,4 +164,19 @@ pub struct ParsedSections<'a> {
     pub section1: Ref<&'a [u8], Section1Container>,
     pub section2: Option<Ref<&'a [u8], Section2Container>>,
     pub section3: Option<Ref<&'a [u8], [Section3Entry]>>, // Assuming Section3 is a collection
+}
+
+impl Validate for ParsedSections<'_> {
+    fn validate(&self) -> Result<(), validator::ValidationErrors> {
+        self.section1.validate()?;
+        if let Some(ref sec2) = self.section2 {
+            sec2.validate()?;
+        }
+        if let Some(ref sec3) = self.section3 {
+            for entry in sec3.iter() {
+                entry.validate()?;
+            }
+        }
+        Ok(())
+    }
 }

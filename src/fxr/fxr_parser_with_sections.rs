@@ -1,29 +1,14 @@
 use super::{
     Section12Entry, Section13Entry, Section14Entry, parse_section_1_tree::ParsedSections,
-    parse_section_4_tree::ParsedSection4Tree,
+    parse_section_4_tree::ParsedSection4Tree, util::ParseError,
 };
 use crate::fxr::{
     Header, parse_section_1_tree::parse_section1_tree, parse_section_4_tree::parse_section4_tree,
     util::parse_named_u32_entries,
 };
-use log::debug;
+use std::error::Error;
 use validator::Validate;
 use zerocopy::Ref;
-
-pub struct ParsedSection7Nested<'a> {
-    pub section11: Vec<Ref<&'a [u8], [crate::fxr::Section11Entry]>>,
-    pub section8: Vec<Ref<&'a [u8], [crate::fxr::Section8Entry]>>,
-}
-
-pub struct ParsedSection8<'a> {
-    pub section11: Vec<Ref<&'a [u8], [crate::fxr::Section11Entry]>>,
-    pub section9: Vec<Ref<&'a [u8], [crate::fxr::Section9Entry]>>,
-}
-
-pub struct ParsedSection7<'a> {
-    pub section11: Vec<Ref<&'a [u8], [crate::fxr::Section11Entry]>>,
-    pub section8: Vec<Ref<&'a [u8], [crate::fxr::Section8Entry]>>,
-}
 
 pub struct ParsedFXR<'a> {
     pub header: Ref<&'a [u8], Header>,
@@ -32,6 +17,34 @@ pub struct ParsedFXR<'a> {
     pub section12_entries: Option<Ref<&'a [u8], [Section12Entry]>>,
     pub section13_entries: Option<Ref<&'a [u8], [Section13Entry]>>,
     pub section14_entries: Option<Ref<&'a [u8], [Section14Entry]>>,
+}
+
+impl Validate for ParsedFXR<'_> {
+    fn validate(&self) -> Result<(), validator::ValidationErrors> {
+        self.header.validate()?;
+        if let Some(ref section1_tree) = self.section1_tree {
+            section1_tree.validate()?;
+        }
+        if let Some(ref section4_tree) = self.section4_tree {
+            section4_tree.validate()?;
+        }
+        if let Some(ref entries) = self.section12_entries {
+            for entry in entries.iter() {
+                entry.validate()?;
+            }
+        }
+        if let Some(ref entries) = self.section13_entries {
+            for entry in entries.iter() {
+                entry.validate()?;
+            }
+        }
+        if let Some(ref entries) = self.section14_entries {
+            for entry in entries.iter() {
+                entry.validate()?;
+            }
+        }
+        Ok(())
+    }
 }
 
 /// Parses the FXR file and prints the header and sections information.
@@ -44,7 +57,7 @@ pub struct ParsedFXR<'a> {
 /// use zerocopy::IntoBytes;
 /// use log::error;
 ///
-/// fn main() -> anyhow::Result<()> {
+/// fn main() -> Result<(), Box<dyn std::error::Error>> {
 ///     let path = PathBuf::from("./fixtures/f000302421.fxr");
 ///     let file = File::open(path)?;
 ///     let mmap = unsafe { Mmap::map(&file)? };
@@ -56,16 +69,17 @@ pub struct ParsedFXR<'a> {
 ///     Ok(())
 /// }
 /// ```
-pub fn parse_fxr<'a>(fxr_file_bytes: &'a [u8]) -> anyhow::Result<ParsedFXR<'a>> {
+pub fn parse_fxr<'a>(fxr_file_bytes: &'a [u8]) -> Result<ParsedFXR<'a>, Box<dyn Error>> {
     let header_size = std::mem::size_of::<Header>();
 
-    let header_ref = Ref::<_, Header>::from_bytes(&fxr_file_bytes[..header_size])
-        .map_err(|_| anyhow::anyhow!("Failed to read header"))?;
-    header_ref.validate().unwrap();
-
-    assert_eq!(&header_ref.magic, b"FXR\0");
-    assert_eq!(header_ref.version, 5);
-    debug!("Header @ 0x00000000: {:#?}", header_ref);
+    let header_ref =
+        Ref::<_, Header>::from_bytes(&fxr_file_bytes[..header_size]).map_err(|_| {
+            ParseError::InvalidHeader(Box::new(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "Invalid Header",
+            )))
+        })?;
+    header_ref.validate()?;
 
     let section1_tree = if header_ref.section1_count > 0 {
         Some(parse_section1_tree(

@@ -1,19 +1,84 @@
 use crate::fxr::{Section8Entry, Section9Entry, Section11Entry, util::parse_section_slice};
 use log::debug;
+use std::fmt::{Display, Formatter};
+use thiserror::Error;
+use validator::Validate;
 use zerocopy::Ref;
 
+#[derive(Error, Debug)]
 pub struct ParsedSection9<'a> {
     pub section11: Vec<Ref<&'a [u8], [Section11Entry]>>,
 }
 
+impl Display for ParsedSection9<'_> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "ParsedSection9 {{ section11: {:?} }}", self.section11)
+    }
+}
+
+impl Validate for ParsedSection9<'_> {
+    fn validate(&self) -> Result<(), validator::ValidationErrors> {
+        for section11 in &self.section11 {
+            section11.validate()?;
+        }
+        Ok(())
+    }
+}
+
+#[derive(Error, Debug)]
 pub struct ParsedSection8<'a> {
     pub section11: Vec<Ref<&'a [u8], [Section11Entry]>>,
     pub section9: Vec<ParsedSection9<'a>>,
 }
 
+impl Display for ParsedSection8<'_> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "ParsedSection8 {{ section11: {:?}, section9: {:?} }}",
+            self.section11, self.section9
+        )
+    }
+}
+
+impl Validate for ParsedSection8<'_> {
+    fn validate(&self) -> Result<(), validator::ValidationErrors> {
+        for section9 in &self.section9 {
+            for section11 in &section9.section11 {
+                section11.validate()?;
+            }
+        }
+        Ok(())
+    }
+}
+
+#[derive(Error, Debug)]
 pub struct ParsedSection7Nested<'a> {
     pub section11: Vec<Ref<&'a [u8], [Section11Entry]>>,
     pub section8: Vec<ParsedSection8<'a>>,
+}
+
+impl Display for ParsedSection7Nested<'_> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "ParsedSection7Nested {{ section11: {:?}, section8: {:?} }}",
+            self.section11, self.section8
+        )
+    }
+}
+
+impl Validate for ParsedSection7Nested<'_> {
+    fn validate(&self) -> Result<(), validator::ValidationErrors> {
+        for section8 in &self.section8 {
+            for section9 in &section8.section9 {
+                for section11 in &section9.section11 {
+                    section11.validate()?;
+                }
+            }
+        }
+        Ok(())
+    }
 }
 
 /// Parses Section7Container and its nested sections
@@ -23,7 +88,7 @@ pub struct ParsedSection7Nested<'a> {
 /// * `container` - The Section7Container to parse
 /// * `label` - A label for logging purposes
 /// # Returns
-/// * `Result<ParsedSection7Nested<'a>, anyhow::Error>` - A result containing the parsed data or an error
+/// * `Result<ParsedSection7Nested<'a>, Box<dyn Error>>` - A result containing the parsed data or an error
 /// # Example
 /// ```
 ///  use fxr_binary_reader::{
@@ -182,22 +247,21 @@ pub fn parse_section7_nested<'a>(
     data: &'a [u8],
     container: &crate::fxr::Section7Container,
     label: &str,
-) -> anyhow::Result<ParsedSection7Nested<'a>> {
+) -> Result<ParsedSection7Nested<'a>, Box<dyn std::error::Error>> {
     debug!("{}: Parsing Section7Container: {:#?}", label, container);
 
-    let mut parsed_section7 = parse_section7_container(data, container, label).unwrap();
+    let mut parsed_section7 = parse_section7_container(data, container, label)?;
 
-    parse_section7_section8_entries(data, container, label, &mut parsed_section7).unwrap();
-
+    parse_section7_section8_entries(data, container, label, &mut parsed_section7)?;
+    parsed_section7.validate()?;
     Ok(parsed_section7)
 }
-
 fn parse_section7_section8_entries<'a>(
     data: &'a [u8],
     container: &crate::fxr::Section7Container,
     label: &str,
     parsed_section7: &mut ParsedSection7Nested<'a>,
-) -> Result<(), anyhow::Error> {
+) -> Result<(), Box<dyn std::error::Error>> {
     if container.section8_count > 0 {
         debug!(
             "{}: Parsing Section8[] @ offset 0x{:08X}, count {}",
@@ -223,7 +287,7 @@ fn parse_section7_section8<'a>(
     i: usize,
     entry: &Section8Entry,
     parsed_section7: &mut ParsedSection7Nested<'a>,
-) -> Result<(), anyhow::Error> {
+) -> Result<(), Box<dyn std::error::Error>> {
     let mut parsed_section8 = ParsedSection8 {
         section11: Vec::new(),
         section9: Vec::new(),
@@ -240,7 +304,7 @@ fn parse_section9_entries<'a>(
     i: usize,
     section8_entry: &Section8Entry,
     parsed_section8: &mut ParsedSection8<'a>,
-) -> Result<(), anyhow::Error> {
+) -> Result<(), Box<dyn std::error::Error>> {
     if section8_entry.section9_count > 0 {
         debug!(
             "{}: Parsing Section8[{}]::Section9[] @ offset 0x{:08X}, count {}",
@@ -270,7 +334,7 @@ fn parse_section8_section9_entry<'a>(
     j: usize,
     s9_entry: &Section9Entry,
     parsed_section8: &mut ParsedSection8<'a>,
-) -> Result<(), anyhow::Error> {
+) -> Result<(), Box<dyn std::error::Error>> {
     let mut parsed_section9 = ParsedSection9 {
         section11: Vec::new(),
     };
@@ -286,7 +350,7 @@ fn parse_section9_section11_entries<'a>(
     j: usize,
     s9_entry: &Section9Entry,
     parsed_section9: &mut ParsedSection9<'a>,
-) -> Result<(), anyhow::Error> {
+) -> Result<(), Box<dyn std::error::Error>> {
     if s9_entry.section11_count > 0 {
         debug!(
             "{}: Parsing Section8[{}]::Section9[{}]::Section11[] @ offset 0x{:08X}, count {}",
@@ -312,7 +376,7 @@ fn parse_section8_section11_entries<'a>(
     i: usize,
     section8_entry: &Section8Entry,
     parsed_section8: &mut ParsedSection8<'a>,
-) -> Result<(), anyhow::Error> {
+) -> Result<(), Box<dyn std::error::Error>> {
     if section8_entry.section11_count > 0 {
         debug!(
             "{}: Parsing Section8[{}]::Section11[] @ offset 0x{:08X}, count {}",
@@ -336,7 +400,7 @@ fn parse_section7_container<'a>(
     data: &'a [u8],
     container: &crate::fxr::Section7Container,
     label: &str,
-) -> Result<ParsedSection7Nested<'a>, anyhow::Error> {
+) -> Result<ParsedSection7Nested<'a>, Box<dyn std::error::Error>> {
     let mut parsed_section7 = ParsedSection7Nested {
         section11: Vec::new(),
         section8: Vec::new(),
@@ -350,7 +414,7 @@ fn parse_section7_section11_entries<'a>(
     container: &crate::fxr::Section7Container,
     label: &str,
     parsed_section7: &mut ParsedSection7Nested<'a>,
-) -> Result<(), anyhow::Error> {
+) -> Result<(), Box<dyn std::error::Error>> {
     if container.section11_count > 0 {
         debug!(
             "{}: Parsing Section11[] @ offset 0x{:08X}, count {}",

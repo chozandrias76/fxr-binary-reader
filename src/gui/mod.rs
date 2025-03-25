@@ -6,7 +6,7 @@ use crossterm::{
 use fxr_binary_reader::fxr::{
     Section4Container,
     fxr_parser_with_sections::{ParsedFXR, parse_fxr},
-    view::view::build_reflection_tree,
+    view::build_reflection_tree,
 };
 use memmap2::Mmap;
 use ratatui::{
@@ -19,6 +19,7 @@ use ratatui_tree_widget::{Tree, TreeItem};
 use std::{
     any::type_name,
     env,
+    error::Error,
     fs::File,
     io,
     ops::Deref,
@@ -59,14 +60,20 @@ pub fn build_root_tree(state: &AppState) -> TreeItem<'static> {
         "Section1Container",
     );
 
-    TreeItem::new("FXR File", vec![header_tree, section_tree])
+    TreeItem::new(
+        "FXR File",
+        vec![header_tree, section_tree]
+            .into_iter()
+            .filter_map(Result::ok) // Filter out any errors
+            .collect::<Vec<TreeItem<'_>>>(),
+    )
 }
 
 pub fn file_selection_loop<B: Backend>(
     terminal: &mut Terminal<B>,
     files: (Vec<PathBuf>, Vec<String>), // Use PathBuf instead of String
     mut selected: usize,                // Add selected index as a parameter
-) -> Option<Result<PathBuf, anyhow::Error>> {
+) -> Option<Result<PathBuf, Box<dyn Error>>> {
     let current_dir = env::current_dir().unwrap();
 
     loop {
@@ -116,7 +123,7 @@ fn parent_pathbuf<B: Backend>(
     files: &(Vec<PathBuf>, Vec<String>),
     selected: usize,
     current_dir: &PathBuf,
-) -> Option<Result<PathBuf, anyhow::Error>> {
+) -> Option<Result<PathBuf, Box<dyn Error>>> {
     if let Some(parent) = files
         .0
         .get(selected)
@@ -142,7 +149,7 @@ fn terminal_enter_file_or_dir<B: Backend>(
     files: &(Vec<PathBuf>, Vec<String>),
     selected: usize,
     current_dir: &PathBuf,
-) -> Option<Result<PathBuf, anyhow::Error>> {
+) -> Option<Result<PathBuf, Box<dyn Error>>> {
     let selected_route = files.0.get(selected).unwrap_or(current_dir);
     if selected_route.is_dir() {
         let dir_entries = file_entries(selected_route).unwrap();
@@ -204,13 +211,14 @@ fn get_class_name<'a, T>(instance: &T) -> &'a str {
 pub fn terminal_draw_loop(
     terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
     mut state: AppState,
-) -> Option<Result<(), anyhow::Error>> {
+) -> Option<Result<(), Box<dyn Error>>> {
     let (bin_path, file) = current_bin_path(&state.selected_file).unwrap();
     let mmap = unsafe { Mmap::map(&file).unwrap() };
     let fxr_file_bytes = &mmap.as_bytes();
 
     // Parse the file
-    let root_tree = build(fxr_file_bytes, bin_path);
+    let root_tree = build(fxr_file_bytes, bin_path).unwrap();
+    let root_tree_clone = root_tree.clone();
 
     // Initialize TreeState
     state.tree_state.toggle(vec![0]); // Expand the root node
@@ -220,7 +228,7 @@ pub fn terminal_draw_loop(
     // Render the UI
     loop {
         terminal
-            .draw(|f| {
+            .draw(|f: &mut ratatui::Frame<'_, CrosstermBackend<io::Stdout>>| {
                 let size = f.size();
                 let chunks = ratatui::layout::Layout::default()
                     .direction(ratatui::layout::Direction::Horizontal)
@@ -232,21 +240,16 @@ pub fn terminal_draw_loop(
                     )
                     .split(size);
 
-                // Render the tree
-                let tree_widget = Tree::new(vec![root_tree.clone()])
+                let tree_widget = Tree::new(vec![root_tree_clone.clone()])
                     .block(Block::default().borders(Borders::ALL).title("Nodes"))
                     .highlight_style(HIGHLIGHT_STYLE);
                 f.render_stateful_widget(tree_widget, chunks[0], &mut state.tree_state);
             })
-            .map_err(anyhow::Error::new)
-            .unwrap();
+            .ok()?;
 
         // Handle input events
-        if event::poll(Duration::from_millis(149))
-            .map_err(anyhow::Error::new)
-            .unwrap()
-        {
-            if let Event::Key(key) = event::read().map_err(anyhow::Error::new).unwrap() {
+        if event::poll(Duration::from_millis(149)).ok()? {
+            if let Event::Key(key) = event::read().ok()? {
                 if last_key_time.elapsed() >= Duration::from_millis(150) {
                     // Debounce threshold
                     last_key_time = Instant::now(); // Update the last key press time
@@ -275,24 +278,22 @@ pub fn terminal_draw_loop(
     }
 }
 
-fn build<'a>(fxr_file_bytes: &&'a [u8], bin_path: PathBuf) -> TreeItem<'a> {
-    let fxr = parse_fxr(fxr_file_bytes)
-        .map_err(|e| anyhow::anyhow!("Failed to parse file '{}': {}", bin_path.display(), e))
-        .unwrap();
+fn build<'a>(fxr_file_bytes: &&'a [u8], bin_path: PathBuf) -> Result<TreeItem<'a>, Box<dyn Error>> {
+    let fxr = parse_fxr(fxr_file_bytes).unwrap();
 
     // Build reflection trees for the header and sections
     let header = fxr.header.deref();
-    let header_tree: TreeItem = build_reflection_tree(header, get_class_name(header));
+    let header_tree: TreeItem = build_reflection_tree(header, get_class_name(header)).unwrap();
     let mut children = vec![header_tree];
 
     let section1_tree = build_section_1_tree(&fxr);
     let section4_tree = build_section_4_tree(&fxr);
 
     // Add parsed sections to the tree
-    if let Some(section_tree) = section1_tree {
+    if let Ok(Some(section_tree)) = section1_tree {
         children.push(section_tree);
     }
-    if let Some(section_tree) = section4_tree {
+    if let Ok(Some(section_tree)) = section4_tree {
         children.push(section_tree);
     }
 
@@ -300,7 +301,9 @@ fn build<'a>(fxr_file_bytes: &&'a [u8], bin_path: PathBuf) -> TreeItem<'a> {
     if let Some(section12_entries) = &fxr.section12_entries {
         let mut section12_tree = TreeItem::new("Section12", vec![]);
         section12_entries.deref().iter().for_each(|entry| {
-            section12_tree.add_child(build_reflection_tree(entry, get_class_name(entry)));
+            if let Ok(child) = build_reflection_tree(entry, get_class_name(entry)) {
+                section12_tree.add_child(child);
+            }
         });
         children.push(section12_tree);
     }
@@ -308,7 +311,9 @@ fn build<'a>(fxr_file_bytes: &&'a [u8], bin_path: PathBuf) -> TreeItem<'a> {
     if let Some(section13_entries) = &fxr.section13_entries.as_deref() {
         let mut section13_tree = TreeItem::new("Section13", vec![]);
         section13_entries.iter().for_each(|entry| {
-            section13_tree.add_child(build_reflection_tree(entry, get_class_name(entry)));
+            if let Ok(child) = build_reflection_tree(entry, get_class_name(entry)) {
+                section13_tree.add_child(child);
+            }
         });
         children.push(section13_tree);
     }
@@ -316,81 +321,87 @@ fn build<'a>(fxr_file_bytes: &&'a [u8], bin_path: PathBuf) -> TreeItem<'a> {
     if let Some(section14_entries) = &fxr.section14_entries.as_deref() {
         let mut section14_tree = TreeItem::new("Section14", vec![]);
         section14_entries.iter().for_each(|entry| {
-            section14_tree.add_child(build_reflection_tree(entry, get_class_name(entry)));
+            if let Ok(child) = build_reflection_tree(entry, get_class_name(entry)) {
+                section14_tree.add_child(child);
+            }
         });
         children.push(section14_tree);
     }
 
     // Combine the trees into a single root
-    TreeItem::new("FXR File", children)
+    Ok(TreeItem::new("FXR File", children))
 }
 
-fn build_section_4_tree<'a>(fxr: &ParsedFXR<'a>) -> Option<TreeItem<'a>> {
+fn build_section_4_tree<'a>(fxr: &ParsedFXR<'a>) -> Result<Option<TreeItem<'a>>, Box<dyn Error>> {
     if let Some(section4_tree) = &fxr.section4_tree {
         let section4: &Section4Container = section4_tree.container.deref();
-        let mut section_tree: TreeItem = build_reflection_tree(section4, get_class_name(section4));
+        let mut section_tree: TreeItem = build_reflection_tree(section4, get_class_name(section4))?;
 
         if let Some(section4_entries) = &section4_tree.section4_entries {
             section4_entries.deref().iter().for_each(|section4_entry| {
-                section_tree.add_child(build_reflection_tree(
-                    section4_entry,
-                    get_class_name(section4_entry),
-                ));
+                if let Ok(child) =
+                    build_reflection_tree(section4_entry, get_class_name(section4_entry))
+                {
+                    section_tree.add_child(child);
+                }
             });
         }
 
         if let Some(section5_entries) = &section4_tree.section5_entries {
             section5_entries.deref().iter().for_each(|section5_entry| {
-                section_tree.add_child(build_reflection_tree(
-                    section5_entry,
-                    get_class_name(section5_entry),
-                ));
+                if let Ok(child) =
+                    build_reflection_tree(section5_entry, get_class_name(section5_entry))
+                {
+                    section_tree.add_child(child);
+                }
             });
         }
 
         if let Some(section6_entries) = &section4_tree.section6_entries {
             section6_entries.deref().iter().for_each(|section6_entry| {
-                section_tree.add_child(build_reflection_tree(
-                    section6_entry,
-                    get_class_name(section6_entry),
-                ));
+                if let Ok(child) =
+                    build_reflection_tree(section6_entry, get_class_name(section6_entry))
+                {
+                    section_tree.add_child(child);
+                }
             });
         }
 
-        Some(section_tree)
+        Ok(Some(section_tree))
     } else {
-        None
+        Ok(None)
     }
 }
 
 fn build_section_1_tree<'a>(
     fxr: &fxr_binary_reader::fxr::fxr_parser_with_sections::ParsedFXR<'a>,
-) -> Option<TreeItem<'a>> {
+) -> Result<Option<TreeItem<'a>>, Box<dyn Error>> {
     if let Some(section1_tree) = &fxr.section1_tree {
         let section1 = section1_tree.section1.deref();
-        let mut section_tree: TreeItem = build_reflection_tree(section1, get_class_name(section1));
+        let mut section_tree: TreeItem = build_reflection_tree(section1, get_class_name(section1))?;
         if let Some(section2) = &section1_tree.section2.as_deref() {
-            let section2_tree: TreeItem = build_reflection_tree(section2, get_class_name(section2));
+            let section2_tree: TreeItem =
+                build_reflection_tree(section2, get_class_name(section2))?;
             section_tree.add_child(section2_tree);
         }
         if let Some(section3) = &section1_tree.section3 {
             section3.deref().iter().for_each(|section_3_entry| {
-                section_tree.add_child(build_reflection_tree(
-                    section_3_entry,
-                    get_class_name(section_3_entry),
-                ));
+                if let Ok(child) =
+                    build_reflection_tree(section_3_entry, get_class_name(section_3_entry))
+                {
+                    section_tree.add_child(child);
+                }
             });
         }
-        Some(section_tree)
+        Ok(Some(section_tree))
     } else {
-        None
+        Ok(None)
     }
 }
 
-pub fn current_bin_path(selected_file: &PathBuf) -> Result<(PathBuf, File), anyhow::Error> {
+pub fn current_bin_path(selected_file: &PathBuf) -> Result<(PathBuf, File), Box<dyn Error>> {
     let current_dir = env::current_dir()?;
     let bin_path = current_dir.join(selected_file);
-    let file = File::open(&bin_path)
-        .map_err(|e| anyhow::anyhow!("Failed to open file '{}': {}", bin_path.display(), e))?;
+    let file = File::open(&bin_path)?;
     Ok((bin_path, file))
 }

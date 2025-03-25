@@ -8,7 +8,10 @@ use crossterm::{
 use fxr_binary_reader::fxr::fxr_parser_with_sections::{ParsedFXR, parse_fxr};
 use ratatui::{Terminal, prelude::CrosstermBackend};
 use ratatui_tree_widget::{TreeItem, TreeState};
-use std::{any::Any, env, fs, io::Read, os::windows::fs::MetadataExt, path::PathBuf, sync::Mutex};
+use std::{
+    any::Any, env, error::Error, fs, io::Read, os::windows::fs::MetadataExt, path::PathBuf,
+    sync::Mutex,
+};
 mod gui;
 use gui::{build_root_tree, file_selection_loop, terminal_draw_loop};
 use std::{fs::File, io};
@@ -43,22 +46,18 @@ impl<'a> Default for AppState<'a> {
         }
     }
 }
-fn load_file_data(file_path: &PathBuf) -> Result<Vec<u8>, anyhow::Error> {
-    let mut file = File::open(file_path)
-        .map_err(|e| anyhow::anyhow!("Failed to open file '{}': {}", file_path.display(), e))?;
+fn load_file_data(file_path: &PathBuf) -> Result<Vec<u8>, Box<dyn Error>> {
+    let mut file = File::open(file_path)?;
     let mut file_data = Vec::new();
-    file.read_to_end(&mut file_data)
-        .map_err(|e| anyhow::anyhow!("Failed to read file '{}': {}", file_path.display(), e))?;
+    file.read_to_end(&mut file_data)?;
     Ok(file_data)
 }
 impl<'a> AppState<'a> {
-    fn new(selected_file: PathBuf, file_data: &'a [u8]) -> Result<Self, anyhow::Error> {
+    fn new(selected_file: PathBuf, file_data: &'a Vec<u8>) -> Result<Self, Box<dyn Error>> {
         let mut ret = Self::default();
 
         // Parse the file
-        let fxr = parse_fxr(file_data).map_err(|e| {
-            anyhow::anyhow!("Failed to parse file '{}': {}", selected_file.display(), e)
-        })?;
+        let fxr: ParsedFXR<'a> = parse_fxr(file_data)?;
         ret.fxr = Some(fxr);
         let root_tree = build_root_tree(&ret);
 
@@ -129,9 +128,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn terminal_main_wrapper(
+fn terminal_main_wrapper<'a>(
     terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
-) -> Result<Result<(), anyhow::Error>, Box<(dyn Any + Send + 'static)>> {
+) -> Result<Result<(), Box<dyn Error>>, Box<(dyn Any + Send + 'a)>> {
     std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         let current_dir = env::current_dir().unwrap();
         let files = file_entries(&current_dir).unwrap();

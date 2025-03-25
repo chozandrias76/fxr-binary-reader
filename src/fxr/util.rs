@@ -24,6 +24,12 @@ pub enum ParseError {
         entry_size: usize,
         count: usize,
     },
+    #[error("Invalid header: {0}")]
+    InvalidHeader(#[from] Box<dyn std::error::Error + Send + Sync>),
+    #[error("Failed to parse struct: {0}")]
+    ValidationErrors(#[from] validator::ValidationErrors),
+    #[error("Standard Error: {0}")]
+    StandardError(#[from] Box<dyn std::error::Error>),
 }
 
 /// Parses a list of named `u32` entries from a data buffer.
@@ -43,7 +49,7 @@ pub enum ParseError {
 ///
 /// # Returns
 /// - `Ok(())`: If the entries are successfully parsed and processed.
-/// - `Err(anyhow::Error)`: If an error occurs during parsing.
+/// - `Err(Box<dyn Error>)`: If an error occurs during parsing.
 ///
 /// # Errors
 /// - Returns an error if the `count` is zero but the function is called unnecessarily.
@@ -53,7 +59,7 @@ pub enum ParseError {
 /// # Examples
 /// ```rust
 /// use zerocopy_derive::{FromBytes, KnownLayout, Immutable};
-/// use anyhow::Result;
+/// use Result;
 /// use fxr_binary_reader::fxr::util::parse_named_u32_entries;
 /// use fxr_binary_reader::fxr::U32Field;
 ///
@@ -69,7 +75,7 @@ pub enum ParseError {
 ///     }
 /// }
 ///
-/// fn main() -> Result<()> {
+/// fn main() -> Result<(), Box<dyn std::error::Error>> {
 ///     let data: &[u8] = &[
 ///         0x01, 0x00, 0x00, 0x00, // Entry 1
 ///         0x02, 0x00, 0x00, 0x00, // Entry 2
@@ -83,16 +89,11 @@ pub fn parse_named_u32_entries<'a, T>(
     offset: u32,
     count: u32,
     label: &str,
-) -> anyhow::Result<Ref<&'a [u8], [T]>>
+) -> Result<Ref<&'a [u8], [T]>, Box<dyn std::error::Error>>
 where
     T: FromBytes + KnownLayout + Immutable + U32Field,
 {
-    // if count == 0 { ///TODO: Figure out if this should be used on other fxr
-    //     return Err(anyhow::anyhow!("{label} is empty. No entries to parse."));
-    // }
-
-    let entries = parse_section_slice::<T>(fxr_file_bytes, offset, count, label)
-        .map_err(|e| anyhow::anyhow!("Failed to parse {label} entries: {e}"))?;
+    let entries = parse_section_slice::<T>(fxr_file_bytes, offset, count, label)?;
 
     debug!("{label} entries ({}):", entries.len());
     for (i, entry) in entries.iter().enumerate() {
@@ -122,14 +123,14 @@ where
 /// - `label`: A label used for error messages to identify the context of the operation.
 /// # Returns
 /// - `Ok(Ref<&'a [u8], T>)`: A reference to the parsed struct of type `T`.
-/// - `Err(anyhow::Error)`: An error if the struct is out of bounds or cannot be parsed.
+/// - `Err(Box<dyn Error>)`: An error if the struct is out of bounds or cannot be parsed.
 /// # Errors
 /// - Returns an error if the calculated end of the struct exceeds the length of the data buffer.
 /// - Returns an error if the struct cannot be parsed into the specified type `T`.
 /// Example usage of `parse_struct`:
 /// ```rust
 /// use zerocopy::{FromBytes, KnownLayout, Ref};
-/// use anyhow::Result;
+/// use Result;
 /// use fxr_binary_reader::fxr::util::parse_struct;
 /// use zerocopy_derive::{Immutable, KnownLayout, FromBytes};
 /// use log::debug;
@@ -181,7 +182,7 @@ where
 ///     field14: u32,
 /// }
 ///
-///fn main() -> anyhow::Result<()> {
+///fn main() -> Result<(), Box<dyn std::error::Error>> {
 ///  let data: &[u8] = &[
 ///      0x01, 0x00,             // field1: u8 + padding
 ///      0x02, 0x00,             // field2: i16 (2 in little-endian)
@@ -284,7 +285,7 @@ pub fn parse_struct<'a, T: FromBytes + KnownLayout + Immutable>(
 ///
 /// # Returns
 /// - `Ok(Ref<&'a [u8], [T]>)`: A reference to the parsed slice of type `T`.
-/// - `Err(anyhow::Error)`: An error if the slice is out of bounds, if size calculations overflow,
+/// - `Err(Box<dyn Error>)`: An error if the slice is out of bounds, if size calculations overflow,
 ///   or if the slice cannot be parsed.
 ///
 /// # Errors
@@ -295,7 +296,6 @@ pub fn parse_struct<'a, T: FromBytes + KnownLayout + Immutable>(
 /// # Examples
 /// ```rust
 /// use zerocopy::{FromBytes, KnownLayout, Ref};
-/// use anyhow::Result;
 /// use fxr_binary_reader::fxr::util::parse_section_slice;
 /// use zerocopy_derive::{Immutable, KnownLayout, FromBytes};
 /// use log::debug;
@@ -323,7 +323,7 @@ pub fn parse_struct<'a, T: FromBytes + KnownLayout + Immutable>(
 ///     field14: u32,
 /// }
 ///
-/// fn main() -> Result<()> {
+/// fn main() -> Result<(), Box<dyn std::error::Error>> {
 ///     let data: &[u8] = &[
 ///         0x01, 0x00,             // field1: u8 + padding
 ///         0x02, 0x00,             // field2: i16 (2 in little-endian)

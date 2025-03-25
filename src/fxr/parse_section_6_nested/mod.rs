@@ -3,6 +3,7 @@ use crate::fxr::{
     util::{ParseError, parse_section_slice, parse_struct},
 };
 use log::debug;
+use validator::Validate;
 use zerocopy::Ref;
 pub mod parse_section_7_nested;
 use parse_section_7_nested::parse_section7_nested;
@@ -36,7 +37,7 @@ pub struct ParsedSection7<'a> {
 /// It prints the parsed data to the console.
 /// # Example
 ///```rust
-/// fn main() -> anyhow::Result<()> {
+/// fn main() -> Result<(), Box<dyn std::error::Error>> {
 ///   use tracing::debug;
 ///   use fxr_binary_reader::fxr::Section6Entry;
 ///   use fxr_binary_reader::fxr::Section11Entry;
@@ -199,8 +200,8 @@ pub fn parse_section6_nested<'a>(
             data,
             &container,
             &format!("Section6[{}]::Section7 @ 0x{:08X}", index, ptr),
-        )
-        .unwrap();
+        )?;
+        container.validate()?;
 
         parsed_section6.section7 = Some(ParsedSection7 { container });
     } else {

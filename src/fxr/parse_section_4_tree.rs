@@ -4,6 +4,7 @@ use crate::fxr::{
     util::{parse_section_slice, parse_struct},
 };
 use log::debug;
+use validator::Validate;
 use zerocopy::Ref;
 
 /// Parses a binary data structure starting at a given offset, extracting and printing details
@@ -40,7 +41,7 @@ use zerocopy::Ref;
 ///```rust
 ///
 ///
-/// fn main() -> anyhow::Result<()> {
+/// fn main() -> Result<(), Box<dyn std::error::Error>> {
 ///     use std::mem;
 ///     use fxr_binary_reader::fxr::parse_section_4_tree::parse_section4_tree;
 ///     use fxr_binary_reader::fxr::Section4Container;
@@ -82,7 +83,7 @@ use zerocopy::Ref;
 pub fn parse_section4_tree(
     fxr_file_bytes: &[u8],
     offset: u32,
-) -> anyhow::Result<ParsedSection4Tree> {
+) -> Result<ParsedSection4Tree, Box<dyn std::error::Error>> {
     let container = parse_struct::<Section4Container>(fxr_file_bytes, offset, "Section4Container")?;
     debug!("Section4Container @ 0x{:08X}: {:#?}", offset, container);
 
@@ -141,4 +142,26 @@ pub struct ParsedSection4Tree<'a> {
     pub section4_entries: Option<zerocopy::Ref<&'a [u8], [Section4Entry]>>,
     pub section5_entries: Option<zerocopy::Ref<&'a [u8], [Section5Entry]>>,
     pub section6_entries: Option<zerocopy::Ref<&'a [u8], [Section6Entry]>>,
+}
+
+impl ParsedSection4Tree<'_> {
+    pub fn validate(&self) -> Result<(), validator::ValidationErrors> {
+        self.container.validate()?;
+        if let Some(ref entries) = self.section4_entries {
+            for entry in entries.iter() {
+                entry.validate()?;
+            }
+        }
+        if let Some(ref entries) = self.section5_entries {
+            for entry in entries.iter() {
+                entry.validate()?;
+            }
+        }
+        if let Some(ref entries) = self.section6_entries {
+            for entry in entries.iter() {
+                entry.validate()?;
+            }
+        }
+        Ok(())
+    }
 }

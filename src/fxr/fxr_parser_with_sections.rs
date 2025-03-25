@@ -1,10 +1,11 @@
 use super::{
-    Section12Entry, Section13Entry, Section14Entry, parse_section_1_tree::ParsedSections,
-    parse_section_4_tree::ParsedSection4Tree, util::ParseError,
+    Section12Entry, Section13Entry, Section14Entry,
+    parse_section_1_tree::ParsedSections,
+    parse_section_4_tree::ParsedSection4Tree,
+    util::{ParseError, parse_section_slice},
 };
 use crate::fxr::{
     Header, parse_section_1_tree::parse_section1_tree, parse_section_4_tree::parse_section4_tree,
-    util::parse_named_u32_entries,
 };
 use std::error::Error;
 use validator::Validate;
@@ -100,7 +101,7 @@ pub fn parse_fxr<'a>(fxr_file_bytes: &'a [u8]) -> Result<ParsedFXR<'a>, Box<dyn 
     };
 
     let section12_entries = if header_ref.section12_count > 0 {
-        Some(parse_named_u32_entries::<Section12Entry>(
+        Some(parse_section_slice::<Section12Entry>(
             fxr_file_bytes,
             header_ref.section12_offset,
             header_ref.section12_count,
@@ -111,7 +112,7 @@ pub fn parse_fxr<'a>(fxr_file_bytes: &'a [u8]) -> Result<ParsedFXR<'a>, Box<dyn 
     };
 
     let section13_entries = if header_ref.section13_count > 0 {
-        Some(parse_named_u32_entries::<Section13Entry>(
+        Some(parse_section_slice::<Section13Entry>(
             fxr_file_bytes,
             header_ref.section13_offset,
             header_ref.section13_count,
@@ -122,7 +123,7 @@ pub fn parse_fxr<'a>(fxr_file_bytes: &'a [u8]) -> Result<ParsedFXR<'a>, Box<dyn 
     };
 
     let section14_entries = if header_ref.section14_count > 0 {
-        Some(parse_named_u32_entries::<Section14Entry>(
+        Some(parse_section_slice::<Section14Entry>(
             fxr_file_bytes,
             header_ref.section14_offset,
             header_ref.section14_count,

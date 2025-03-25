@@ -64,6 +64,7 @@ fn setup() -> Result<(), Box<dyn std::error::Error>> {
         tracing::error!("Application panicked: {}", panic_info);
     }));
 
+    #[allow(unsafe_code)]
     let handler = CrashHandler::attach(unsafe {
         make_crash_event(move |context: &CrashContext| {
             tracing::error!(

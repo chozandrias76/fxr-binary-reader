@@ -1,4 +1,3 @@
-use super::U32Field;
 use log::debug;
 use zerocopy::{FromBytes, Immutable, KnownLayout, Ref};
 
@@ -30,84 +29,6 @@ pub enum ParseError {
     ValidationErrors(#[from] validator::ValidationErrors),
     #[error("Standard Error: {0}")]
     StandardError(#[from] Box<dyn std::error::Error>),
-}
-
-/// Parses a list of named `u32` entries from a data buffer.
-///
-/// This function extracts and processes a list of entries of type `T` from the provided data buffer.
-/// It validates the input parameters, ensures the entries are within bounds, and prints detailed
-/// information about each entry.
-///
-/// # Type Parameters
-/// - `T`: The type of the entries to parse. Must implement `FromBytes`, `KnownLayout`, `Immutable`, and `U32Field`.
-///
-/// # Arguments
-/// - `data`: A reference to the data buffer containing the entries.
-/// - `offset`: The starting offset (in bytes) of the entries within the data buffer.
-/// - `count`: The number of entries to parse.
-/// - `label`: A label used for logging and error messages to identify the context of the operation.
-///
-/// # Returns
-/// - `Ok(())`: If the entries are successfully parsed and processed.
-/// - `Err(Box<dyn Error>)`: If an error occurs during parsing.
-///
-/// # Errors
-/// - Returns an error if the `count` is zero but the function is called unnecessarily.
-/// - Returns an error if the data buffer is too small or the offset and count exceed its bounds.
-/// - Returns an error if the entries cannot be parsed into the specified type `T`.
-///
-/// # Examples
-/// ```rust
-/// use zerocopy_derive::{FromBytes, KnownLayout, Immutable};
-/// use Result;
-/// use fxr_binary_reader::fxr::util::parse_named_u32_entries;
-/// use fxr_binary_reader::fxr::U32Field;
-///
-/// #[repr(C)]
-/// #[derive(FromBytes, KnownLayout, Immutable, Debug)]
-/// struct MyEntry {
-///     value: u32,
-/// }
-///
-/// impl U32Field for MyEntry {
-///     fn data(&self) -> u32 {
-///         self.value
-///     }
-/// }
-///
-/// fn main() -> Result<(), Box<dyn std::error::Error>> {
-///     let data: &[u8] = &[
-///         0x01, 0x00, 0x00, 0x00, // Entry 1
-///         0x02, 0x00, 0x00, 0x00, // Entry 2
-///     ];
-///     let _entries = parse_named_u32_entries::<MyEntry>(data, 0, 2, "TestEntries")?;
-///     Ok(())
-/// }
-/// ```
-pub fn parse_named_u32_entries<'a, T>(
-    fxr_file_bytes: &'a [u8],
-    offset: u32,
-    count: u32,
-    label: &str,
-) -> Result<Ref<&'a [u8], [T]>, Box<dyn std::error::Error>>
-where
-    T: FromBytes + KnownLayout + Immutable + U32Field,
-{
-    let entries = parse_section_slice::<T>(fxr_file_bytes, offset, count, label)?;
-
-    debug!("{label} entries ({}):", entries.len());
-    for (i, entry) in entries.iter().enumerate() {
-        let ptr = entry as *const _ as usize;
-        debug!(
-            "  {}[{}] @ 0x{:08X} = 0x{:08X}",
-            label,
-            i,
-            ptr,
-            entry.data()
-        );
-    }
-
-    Ok(entries)
 }
 
 /// Parses a struct from the given data buffer at the specified offset.

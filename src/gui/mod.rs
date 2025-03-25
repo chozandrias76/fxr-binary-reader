@@ -180,6 +180,7 @@ pub fn terminal_draw_loop(
     mut state: AppState,
 ) -> Option<Result<(), Box<dyn Error>>> {
     let (_bin_path, file) = current_bin_path(&state.selected_file).unwrap();
+    #[allow(unsafe_code)]
     let mmap = unsafe { Mmap::map(&file).unwrap() };
     let fxr_file_bytes = &mmap.as_bytes();
 

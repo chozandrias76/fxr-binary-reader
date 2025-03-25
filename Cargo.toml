@@ -1,50 +1,33 @@
-[package]
-name = "fxr-binary-reader"
+[workspace]
+resolver = "2"
+members = [
+    "crates/reader",
+    "crates/gui",
+]
+
+[workspace.package]
 version = "0.1.0"
 edition = "2024"
+repository = "https://github.com/chozandrias76/fxr-binary-reader"
+license = "MIT OR Apache-2.0"
 
-[lib]
-name = "fxr_binary_reader"
-path = "src/lib.rs"
-
-[dependencies]
-chrono = "0.4.40"
-clap = { version = "4.0", features = ["derive"] }
-crash-handler = "0.6"
-crossterm = "0.28.1"
-insta = "1.42.2"
+[workspace.dependencies]
 log = "0.4"
-memmap2 = "*"
-ratatui = "0.28.1"
+gui = { path = "crates/gui", version = "0.1.0", package = "gui" }
+reader = { path = "crates/reader", version = "0.1.0", package = "reader" }
 serde = { version = "1", features = ["derive"] }
-serde_json = "*"
 serde-reflection = "0.5.0"
-thiserror = "2"
-tracing = "0.1"
-tracing-subscriber = "0.3"
-tracing-panic = "0.1"
-ratatui-tree-widget = { git = "https://github.com/chozandrias76/ratatui-tree-widget", version = "*" }
-validator = { version = "0.19", features = ["derive"] }
+serde_json = "*"
 zerocopy = { version = "0.8.24" }
 zerocopy-derive = "0.8.24"
 
-
-[features]
-debug = []
+[workspace.dependencies.tracing-tracy]
+version = "0.11.3"
+features = ["enable"]
 
 [profile.release]
-opt-level = 3
+strip = true
 lto = true
-debug = false
+codegen-units = 1
 panic = "abort"
-
-[profile.dev]
-opt-level = 0
-debug = true
-panic = "unwind"
-
-[lints.rust]
-unsafe_code = "warn"
-
-[lints.clippy]
-enum_glob_use = "deny"
+opt-level = "z"

@@ -39,12 +39,11 @@ pub struct ParsedSection7<'a> {
 /// # Example
 ///```rust
 /// fn main() -> Result<(), Box<dyn std::error::Error>> {
-///   use tracing::debug;
 ///   use fxr_binary_reader::fxr::Section6Entry;
 ///   use fxr_binary_reader::fxr::Section11Entry;
 ///   use fxr_binary_reader::fxr::parse_section_6_nested::parse_section6_nested;
 ///   use fxr_binary_reader::fxr::util::parse_section_slice;
-///   let fixture_path = "fixtures/f000302420.fxr";
+///   let fixture_path = "../../fixtures/f000302420.fxr";
 ///   let data = std::fs::read(fixture_path).unwrap();
 ///   let section6_offset = 0x1E0;
 ///   let section6_count = 0x24;
@@ -68,7 +67,6 @@ pub struct ParsedSection7<'a> {
 ///     assert_eq!(ptr, 0x1458 + (0xE0*p) + (4*i), "{}", format!("Section11 entry offset mismatch at index {}", i));
 ///  }
 ///
-///   // Assert on key values
 ///   Ok(())
 /// }
 /// ```

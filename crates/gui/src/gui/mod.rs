@@ -1,12 +1,8 @@
+mod view;
 use crate::{AppState, file_entries};
 use crossterm::{
     event::{self, Event, KeyCode},
     style::Stylize,
-};
-use fxr_binary_reader::fxr::{
-    Section4Container,
-    fxr_parser_with_sections::{ParsedFXR, parse_fxr},
-    view::build_reflection_tree,
 };
 use memmap2::Mmap;
 use ratatui::{
@@ -16,6 +12,10 @@ use ratatui::{
     widgets::{Block, Borders, List, ListItem, ListState},
 };
 use ratatui_tree_widget::{Tree, TreeItem};
+use reader::fxr::{
+    Section4Container,
+    fxr_parser_with_sections::{ParsedFXR, parse_fxr},
+};
 use std::{
     any::type_name,
     env,
@@ -26,6 +26,7 @@ use std::{
     path::PathBuf,
     time::{Duration, Instant},
 };
+use view::*;
 use zerocopy::IntoBytes;
 
 const HIGHLIGHT_STYLE: Style = Style {
@@ -341,9 +342,7 @@ fn build_section_4_tree<'a>(fxr: &ParsedFXR<'a>) -> Result<Option<TreeItem<'a>>,
     }
 }
 
-fn build_section_1_tree<'a>(
-    fxr: &fxr_binary_reader::fxr::fxr_parser_with_sections::ParsedFXR<'a>,
-) -> Result<Option<TreeItem<'a>>, Box<dyn Error>> {
+fn build_section_1_tree<'a>(fxr: &ParsedFXR<'a>) -> Result<Option<TreeItem<'a>>, Box<dyn Error>> {
     if let Some(section1_tree) = &fxr.section1_tree {
         let section1 = section1_tree.section1.deref();
         let mut section_tree: TreeItem = build_reflection_tree(section1, get_class_name(section1))?;

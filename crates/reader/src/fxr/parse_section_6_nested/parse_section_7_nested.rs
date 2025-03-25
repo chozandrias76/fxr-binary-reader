@@ -94,7 +94,7 @@ impl Validate for ParsedSection7Nested<'_> {
 ///  use fxr_binary_reader::{
 ///      fxr, fxr::parse_section_6_nested::parse_section_7_nested::parse_section7_nested,
 ///  };
-///  let fixture_path = "fixtures/f000302420.fxr";
+///  let fixture_path = "../../fixtures/f000302420.fxr";
 ///  let data = std::fs::read(fixture_path).unwrap();
 ///  let mut container = fxr::Section7Container::default();
 ///  container.section11_count = 248;

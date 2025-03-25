@@ -52,18 +52,17 @@ impl Validate for ParsedFXR<'_> {
 /// # Example
 /// ```rust
 /// use fxr_binary_reader::fxr::fxr_parser_with_sections::parse_fxr;
-/// use memmap2::Mmap;
 /// use std::fs::File;
+/// use std::io::Read;
 /// use std::path::PathBuf;
-/// use zerocopy::IntoBytes;
 /// use log::error;
 ///
 /// fn main() -> Result<(), Box<dyn std::error::Error>> {
-///     let path = PathBuf::from("./fixtures/f000302421.fxr");
-///     let file = File::open(path)?;
-///     let mmap = unsafe { Mmap::map(&file)? };
-///     let data = &mmap.as_bytes();
-///     if let Err(e) = parse_fxr(data) {
+///     let path = PathBuf::from("../../fixtures/f000302421.fxr");
+///     let mut file = File::open(path)?;
+///     let mut data = Vec::new();
+///     file.read_to_end(&mut data)?;
+///     if let Err(e) = parse_fxr(&data) {
 ///         error!("Error parsing FXR: {}", e);
 ///         panic!("Test failed");
 ///     }

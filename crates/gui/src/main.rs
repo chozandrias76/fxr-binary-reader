@@ -5,12 +5,12 @@ use crossterm::{
     execute,
     terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
-use fxr_binary_reader::fxr::fxr_parser_with_sections::{ParsedFXR, parse_fxr};
 use ratatui::{
     Terminal,
     prelude::{Backend, CrosstermBackend},
 };
 use ratatui_tree_widget::TreeState;
+use reader::fxr::fxr_parser_with_sections::{ParsedFXR, parse_fxr};
 use std::{
     any::Any, env, error::Error, fs, io::Read, os::windows::fs::MetadataExt, path::PathBuf,
     sync::Mutex,

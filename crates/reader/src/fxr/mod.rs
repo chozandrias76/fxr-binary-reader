@@ -10,7 +10,6 @@ pub mod parse_section_1_tree;
 pub mod parse_section_4_tree;
 pub mod parse_section_6_nested;
 pub mod util;
-pub mod view;
 
 mod hex_formatted_bytes {
     use serde::{self, Deserialize, Deserializer, Serializer};

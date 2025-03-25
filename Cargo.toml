@@ -15,7 +15,7 @@ crossterm = "0.28.1"
 insta = "1.42.2"
 log = "0.4"
 memmap2 = "*"
-ratatui = "0.22.0"
+ratatui = "0.28.1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "*"
 serde-reflection = "0.5.0"
@@ -23,7 +23,7 @@ thiserror = "2"
 tracing = "0.1"
 tracing-subscriber = "0.3"
 tracing-panic = "0.1"
-ratatui-tree-widget = { git = "https://github.com/woxjro/ratatui-tree-widget", version = "*" }
+ratatui-tree-widget = { git = "https://github.com/chozandrias76/ratatui-tree-widget", version = "*" }
 validator = { version = "0.19", features = ["derive"] }
 zerocopy = { version = "0.8.24" }
 zerocopy-derive = "0.8.24"

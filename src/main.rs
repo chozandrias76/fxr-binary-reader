@@ -6,7 +6,10 @@ use crossterm::{
     terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
 use fxr_binary_reader::fxr::fxr_parser_with_sections::{ParsedFXR, parse_fxr};
-use ratatui::{Terminal, prelude::CrosstermBackend};
+use ratatui::{
+    Terminal,
+    prelude::{Backend, CrosstermBackend},
+};
 use ratatui_tree_widget::TreeState;
 use std::{
     any::Any, env, error::Error, fs, io::Read, os::windows::fs::MetadataExt, path::PathBuf,
@@ -90,7 +93,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
-    let result = terminal_main_wrapper(&mut terminal);
+    let result = terminal_main_wrapper::<CrosstermBackend<io::Stdout>>(&mut terminal);
 
     disable_raw_mode()?;
     execute!(
@@ -113,7 +116,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn terminal_main_wrapper<'a>(
+fn terminal_main_wrapper<'a, B: Backend>(
     terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
 ) -> Result<Result<(), Box<dyn Error>>, Box<(dyn Any + Send + 'a)>> {
     std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
@@ -136,7 +139,7 @@ fn terminal_main_wrapper<'a>(
         if terminal_draw_loop(terminal, state).is_some() {
             Ok(())
         } else {
-            terminal_main_wrapper(terminal).unwrap()
+            terminal_main_wrapper::<B>(terminal).unwrap()
         }
     }))
 }

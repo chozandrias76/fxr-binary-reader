@@ -48,7 +48,7 @@ pub fn file_selection_loop<B: Backend>(
         list_state.select(Some(selected));
         terminal
             .draw(|frame| {
-                render_files_list_state(&files, list_state, frame);
+                render_files_list_state(&files, list_state, frame as &mut ratatui::Frame);
             })
             .unwrap();
 
@@ -140,12 +140,12 @@ fn increment_selected(files: &(Vec<PathBuf>, Vec<String>), selected: &mut usize)
     }
 }
 
-fn render_files_list_state<B: Backend>(
+fn render_files_list_state(
     files: &(Vec<PathBuf>, Vec<String>),
     mut list_state: ListState,
-    f: &mut ratatui::Frame<'_, B>,
+    f: &mut ratatui::Frame<'_>,
 ) {
-    let size = f.size();
+    let size = f.area();
     let items: Vec<ListItem> = files
         .0
         .iter()
@@ -196,8 +196,8 @@ pub fn terminal_draw_loop(
     // Render the UI
     loop {
         terminal
-            .draw(|f: &mut ratatui::Frame<'_, CrosstermBackend<io::Stdout>>| {
-                let size = f.size();
+            .draw(|f: &mut ratatui::Frame<'_>| {
+                let size = f.area();
                 let chunks = ratatui::layout::Layout::default()
                     .direction(ratatui::layout::Direction::Horizontal)
                     .constraints(
